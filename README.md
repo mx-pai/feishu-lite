@@ -1,280 +1,41 @@
 # Feishu Lite
 
-把飞书文档的编辑体验搬进 Obsidian：**斜杠菜单、图片分栏网格、文字分栏、粘贴自动命名 / 压缩、文本高亮、表格 / 列表增强、Mermaid 骨架、阅读视图美化（含图片查看器）、浮动目录、中英混排美化、阅读位置记忆、附件自动清理（图床管家）、目录页自动化**。
+**飞书文档风格的 Obsidian 编辑体验** —— 斜杠菜单、图片分栏、粘贴自动命名、彩色高亮、表格 / 列表增强、浮动目录。
 
-> 源码在本仓库 `src/`，发布产物 `main.js`（esbuild 构建）。
+Feishu-doc-style editing for Obsidian: slash menu, image grids, paste auto-rename, colored highlights, and more.
 
----
+## 功能亮点
 
-## English
+- **斜杠菜单** — 行首 `/`，中文 / 英文 / 拼音匹配；参数化命令双栏级联，回车即用
+- **图片分栏** — `img-2/3/4` 网格，阅读 / 编辑双端渲染；多图粘贴自动成栏
+- **粘贴自动命名** — `{note}-{date}-{i}` 模板存入附件目录，可选 WebP / JPEG 压缩
+- **彩色高亮** — `=={red}文字==` 七色；划词工具条（高亮 / 内联代码 / 删除线，再点取消）
+- **表格 / 列表增强** — Tab 跳格自动对齐、行列增删；`Cmd+Shift+↑/↓` 移动子树；对 Advanced Tables / Outliner 自动让位
+- **阅读视图美化** — 代码块徽标 / 复制 / 行号、表格斑马纹、图片查看器
+- **浮动目录** — 右侧悬浮大纲：悬停展开、滚动跟随、点击跳转
+- **还有** — Mermaid 骨架、中英混排美化、阅读位置记忆、附件自动清理、目录页自动化
 
-**Feishu Lite** recreates the Feishu (Lark) document editing experience in Obsidian: a slash menu, image column grids, paste auto-rename and optional compression, colored highlights with a selection toolbar, table and list enhancements, Mermaid snippets, reading-view beautification, a floating outline, CJK–Latin spacing, reading position memory, automatic attachment cleanup, and index-page automation.
+## Features
 
-Highlights:
+- **Slash menu** — `/` at the start of a line, with Chinese / English / pinyin matching; two-pane cascading pickers for parameterized commands
+- **Image grids** — `img-2/3/4` callout layouts rendered in reading and editing views; multi-image paste wraps automatically
+- **Paste auto-rename** — `{note}-{date}-{i}` templates into your attachment folder; optional WebP / JPEG compression
+- **Colored highlights** — `=={red}text==` (seven colors) plus a selection toolbar (highlight / recolor / inline code / strikethrough, click again to remove)
+- **Table & list enhancements** — Tab navigation with auto-alignment, row and column editing, `Cmd+Shift+↑/↓` subtree moves; yields to Advanced Tables / Outliner
+- **Reading view polish** — code block badges, copy button and line numbers, zebra tables, image lightbox
+- **Floating outline** — hover-to-expand rail on the right edge, scroll-following highlight, click to jump
+- **Also included** — Mermaid snippets, CJK–Latin spacing, reading position memory, attachment cleanup, index-page automation
 
-- **Slash menu** — type `/` at the start of a line, then filter in Chinese, English, or pinyin (full names and abbreviations). Parameterized commands (callout type, code language, highlight color, Mermaid type) open a two-pane cascading picker, just like Feishu.
-- **Image grids** — `img-2` / `img-3` / `img-4` callouts render 2/3/4-column image layouts in both reading and editing views. Pasting several images at once wraps them into a grid automatically.
-- **Paste auto-rename** — pasted or dropped images are renamed from a template such as `{note}-{date}-{i}` and stored in your attachment folder, with optional WebP / JPEG compression before saving.
-- **Colored highlights** — `=={red}text==` (seven colors) next to the native `==text==`. Select a single line in the editor and a small toolbar appears: click to highlight, recolor, or convert to inline code / strikethrough; click the lit button again to remove.
-- **Table and list enhancements** — Tab / Shift+Tab / Enter cell navigation with automatic alignment, row and column insert / delete, and `Cmd+Shift+↑/↓` to move list subtrees. These features yield automatically while the Advanced Tables or Outliner plugins are enabled.
-- **Reading view polish** — code blocks get a language badge, a copy button, and line numbers; tables get zebra striping; images open in a zoomable, pannable lightbox.
-- **Floating outline** — a Feishu-style outline rail on the right edge that expands on hover, follows your scroll, and jumps to any heading on click.
-- **Also included** — CJK–Latin spacing, reading position memory, unreferenced attachment cleanup (items go to the trash, never a permanent delete), and index-page automation.
+## 安装 / Installation
 
-### Installation
+- **社区插件市场 / Community plugins**：设置 → 社区插件 → 搜索 "Feishu Lite" / Settings → Community plugins → search "Feishu Lite"
+- **手动 / Manual**：从 [Releases](https://github.com/mx-pai/feishu-lite/releases) 下载 `main.js`、`manifest.json`、`styles.css`，放入 `<vault>/.obsidian/plugins/feishu-lite/` 后启用 / download from Releases into `<vault>/.obsidian/plugins/feishu-lite/`, then enable
 
-- **Community plugins**: search for "Feishu Lite" in Settings → Community plugins.
-- **Manual**: download `main.js`, `manifest.json`, and `styles.css` from [Releases](https://github.com/mx-pai/feishu-lite/releases), place them in `<vault>/.obsidian/plugins/feishu-lite/`, then enable the plugin.
+Requires Obsidian 1.6.6+ · MIT License
 
-Requires Obsidian 1.6.6 or later. MIT licensed.
-
----
-
-## 安装
-
-- **社区插件市场**：搜索 "Feishu Lite"（通过审核后）。
-- **手动安装**：从 [Releases](https://github.com/mx-pai/feishu-lite/releases) 下载 `main.js`、`manifest.json`、`styles.css`，放入 vault 的 `.obsidian/plugins/feishu-lite/` 目录后启用。
-
-## 功能一览
-
-### 1. 斜杠菜单（行首输入 `/`）
-
-支持 **中文 / 英文 / 拼音全称 / 拼音缩写** 匹配。列表里 **回车即执行**：纯插入类命令直接落笔；「需要选参数」的项（高亮块类型、代码语言、高亮颜色、Mermaid 类型）会进入**飞书式双栏级联**：一级菜单保留在左、参数展开在右，`↑↓` 选择、`Enter` 确定、`←` 返回上一级换项、`Esc` 收起，不用再输入筛选。只有「插入图片」因为要搜图 / 看缩略图，仍是弹窗。
-
-| 输入 | 插入 |
-|---|---|
-| `/glk`、`/glklx`、`/高亮块` | 高亮块（回车进类型级联，第一项「提示 note」为默认） |
-| `/zdk`、`/折叠` | 折叠高亮块（回车直接插入，默认折叠） |
-| `/dmk`、`/代码块` | 代码块（23 种语言任选） |
-| `/mmd`、`/mermaid`、`/图表` | Mermaid 图骨架（流程图 / 时序 / 甘特等 12 类任选） |
-| `/rw`、`/todo`、`/待办` | `- [ ]` 任务项 |
-| `/yy`、`/引用` | `>` 引用块 |
-| `/fgx`、`/分割线` | `---` |
-| `/bg`、`/表格` | 表格（悬停网格选行列） |
-| `/tpfl`、`/fl`、`/分栏` | 图片分栏骨架（回车 = 设置里的默认栏数） |
-| `/tpfl2`、`/2栏`（`tpfl3`/`tpfl4` 同理） | 指定 2/3/4 栏的分栏骨架 |
-| `/wzfl`、`/文字分栏` | 文字分栏骨架（回车选 2/3/4 栏） |
-| `/tp`、`/图片` | 图库多选插入器 |
-| `/dl`、`/多栏` | 把选中的图片行包成网格 |
-| `/hl`、`/cshl`、`/高亮` | 文本高亮（回车选颜色，第一项「默认（黄色）」= `==文字==`） |
-| `/rq`、`/日期` | 今天日期 |
-
-### 2. 图片分栏网格
-
-```markdown
-> [!img-2]
-> ![](图床/a.png)
-> ![](图床/b.png)
-```
-
-- `img-2` / `img-3` / `img-4` 分别对应 2/3/4 栏，阅读视图与编辑视图均渲染
-- 空网格会显示虚线占位提示（"空分栏 · 把图片粘贴或拖进来"），贴入图片后自动消失
-- **编辑视图里点进块内**（Obsidian 会把 callout 切成源码）时：光标没在的图片行显示为**小缩略图**，不露出 `image-xxx.png` 文件名；点到哪一行，哪一行才恢复可编辑的原文（方便改尺寸）
-- 命令：
-  - `图片：插入分栏网格` —— 插入骨架后直接往里粘贴
-  - `图片：选中包成多栏` —— 选中若干图片行，一键成栏（自动去掉 `|尺寸`、保留 alt）
-  - `图片：取消分栏` —— 还原成普通图片行
-  - `图片：从图库多选插入` —— 带缩略图的选图弹窗（空格多选 / 回车插入 / 搜索文件名）
-- 样式与开关（设置面板）：统一行高（预设 300/400/500，0 = 自适应）、间距/圆角滑杆（实时效果预览）、空分栏占位提示、编辑视图图片行缩略图
-
-### 3. 粘贴自动命名
-
-- 粘贴 / 拖入图片时，按模板重命名后存入附件目录（当前为 `图床`）
-- 默认模板：`{note}-{date}-{i}` → 例 `学习笔记-20261002-1.png`
-- 可用变量：`{note}` 笔记名、`{date}` 日期、`{time}` 时间、`{i}` 序号
-- `{date}` 日期格式可切换：紧凑 `20261003` / 带横线 `2026-10-03` / 短年份 `261003`（设置面板实时预览命名结果）
-- **可选：粘贴自动压缩**（默认关）：先压再存，WebP / JPEG 任选、质量可调、最长边等比缩小；转后更大、失败、GIF / SVG 自动保留原图
-- **一次粘贴多张**：自动包成图片分栏网格（可在设置关闭）
-- 在分栏 / callout 内部粘贴时自动加 `>` 前缀，不产生嵌套
-- 任何异常都会回退到 Obsidian 默认粘贴行为，不会丢图
-
-### 4. 文本高亮（融合原生）
-
-- 语法：原生 `==文字==`（默认黄色）+ 彩色 `=={red}文字==`；颜色：`red / orange / yellow / green / blue / purple / gray`
-- 斜杠 `/高亮` / `/hl` / `/cshl`（或命令「格式：高亮」）唤起颜色级联：第一项「默认（黄色）」= 原生 `==文字==`；未选中文字时插入占位并自动选中
-- 阅读视图 + 编辑视图（Live Preview）双端渲染；编辑视图中语法标记自动隐藏
-- 颜色可自定义（设置面板）：7 色色块随意调整，一键恢复默认
-- **划词工具条**（可在「编辑器增强」关闭）：编辑视图选中**单行**文字即浮现小工具条——7 个色点一键高亮 / 直接换色（黄点 = 默认 `==文字==`），`</>` 一键行内代码；选区在已有标记内 / 覆盖标记时会**自动剥掉旧标记再包新的**（连续换色、高亮 ↔ 行内代码互转都不叠加）；加粗 / 斜体等已有快捷键的操作不重复提供
-
-### 5. 表格增强（炼化 Advanced Tables）
-
-- 光标在表格里：`Tab` 下一格 / `Shift+Tab` 上一格 / `Enter` 下一行同列；末行末格跳格自动补新行（列数对齐表头）
-- 每次跳格自动把整表对齐格式化（中文按 2 字符宽计算，中英混排不再歪）
-- 命令「表格：格式化当前表格」：一键整理从外部粘进来的乱表
-- **插入表格 = 悬停网格选行列**：斜杠 `/bg` 或命令「插入：表格」→ 8×8 网格悬停（或方向键）选 `列 × 行`，回车 / 点击插入
-- **行列增删**（6 个命令，光标放表格里执行）：「表格：向上插入行 / 向下插入行 / 向左插入列 / 向右插入列 / 删除当前行 / 删除当前列」；表头行与分隔行有保护提示，改完整表自动重新对齐
-- **让位机制**：Advanced Tables 插件启用期间本模块自动不接管（键位交给它）；停用后无缝接手
-
-### 6. 列表增强（炼化 Outliner）
-
-- `Cmd+Shift+↑ / ↓`：整棵子树上下移动，与相邻同级项换位（子项一并带走）
-- 光标在续行（非项行）时向上找所属项；非列表行放行默认行为
-- **让位机制**：Outliner 插件启用期间不接管；停用后无缝接手
-- Tab / 缩进 / 折叠等基础列表操作本来就由 Obsidian 原生提供，本插件不重复造
-
-### 7. Mermaid 骨架
-
-- 斜杠 `/mmd`（或命令「插入：Mermaid 图」）→ 选类型 → 插入带中文示例的 ` ```mermaid ` 骨架
-- 12 类：流程图 TD / LR、时序、类图、状态图、甘特、饼图、用户旅程、ER、思维导图、时间线、象限图
-
-### 8. 文字分栏
-
-```markdown
-> [!col-2]
-> 第一栏：段落、列表、引用都可以
-> - 列表项
->
-> ---
->
-> 第二栏
-```
-
-- `col-2` / `col-3` / `col-4` 分别对应 2/3/4 栏；栏与栏之间用**单独一行的 `> ---`** 分隔（前后各留一个空行，否则会被解析成上文的标题下划线）
-- 阅读视图真分栏（段落 / 列表 / 引用 / 代码块都行）；编辑视图为普通引用块外观，栏间显示虚线分隔
-- 超出栏数的内容自动并入最后一栏（不丢内容）；空栏显示虚线占位（跟随「空分栏占位提示」开关）
-- 斜杠 `/wzfl` 选栏数插入骨架（光标直接落在第一栏），也可以按上面的语法手写
-
-### 9. 阅读视图美化
-
-- **代码块**：右上角语言徽标 + 「复制」按钮（悬停显现，点击复制代码）；4 行以上的自动加行号；语法高亮不受影响
-- **表格**：隔行浅色底（斑马纹）+ 鼠标悬停整行高亮
-- **图片查看器**：点击阅读视图里的图片 → 悬浮放大查看：滚轮缩放（以光标为锚点）、按住拖拽平移、Esc 或点击空白关闭；编辑视图 / 画布不受影响，图片文件零改动
-- **列对齐**：光标在表格里执行命令「表格：切换列对齐（左/中/右）」，每按一次切一档：默认 → 居中 → 右对齐 → 默认（改的是分隔行 `---` / `:---:` / `---:`，整表自动重新对齐）
-- 代码块美化 / 表格斑马纹 / 图片查看器三个开关在设置面板「阅读视图美化」（默认开启），只影响阅读视图，不改动笔记源文件
-
-### 10. 浮动目录（Feishu 式）
-
-- 当前笔记右侧悬浮大纲卡片：**默认收成右侧垂直居中一条窄轨**（每条标题一根小横杠、当前章节点亮），常驻也不遮正文；**鼠标悬停自动展开**成完整卡片（悬停约 150ms 再展开，避免鼠标路过误触；移开自动收起）
-- **滚动时自动高亮所在章节**、点击条目跳转（阅读 / 编辑视图都支持；跳转后高亮**停在你点的条目**上，直到你再次滚动。即使文档已滚到底、目标标题顶不到最上，点击也有明确反馈）；展开态右上角「»」把整个面板收起（收起后可用命令或设置再打开）
-- **显隐**：命令「视图：切换浮动目录」（建议绑快捷键）或设置面板开关；状态记忆到设置，重启保留；面板只跟随当前激活的笔记，切到侧边栏（文件树等）不会消失
-- **性能**（隐藏时零开销）：
-  - 标题数据直接取 Obsidian 的元数据缓存（`fileCache.headings`），本插件零解析；列表按「标题签名」去重重建，打字引起的高频缓存更新基本不花成本
-  - 滚动跟随 = 一个捕获型 scroll 监听（rAF 节流）：用 `currentMode.getScroll()` 取「视口顶部行号」再二分查找——阅读视图对长笔记是**懒渲染**（只渲染视口附近的区块），取行号完全不受影响；只有「当前章节变化」才动一次 DOM
-  - 关闭 / 收起后：面板 DOM、滚动监听全部拆除，不留任何监听器
-- 面板形态：收起态为右缘窄轨（细横杠列表，当前章节点亮）、展开态为磨砂半透明卡片（悬停触发），收起按钮在展开态标题栏右端
-- 跳转用 Obsidian 自带的双视图同步 API（`currentMode.applyScroll`）：阅读 / 编辑视图通用，对未渲染的远处标题也能精确定位
-
-### 11. 阅读与写作
-
-- **中英混排美化**：「用Obsidian写」→「用 Obsidian 写」——在中文与英文 / 数字之间自动补空格；代码块、行内代码、双链、链接、公式、`=={色}` 标记内不动
-  - 命令「格式：中英混排美化（加空格）」：有选区只处理选区，否则整篇（只替换变化的中段，光标与滚动位置不受影响）
-  - 设置里可开「粘贴时自动美化」（默认关），粘贴文本时自动补空格（光标在代码块里时跳过）
-- **阅读位置记忆**：按笔记记住上次读到的位置，长笔记重开自动回到原位
-  - 只在阅读视图恢复（编辑视图的光标位置由 Obsidian 原生恢复，不抢）；取/设位置用 `currentMode.getScroll()/applyScroll()`，不受长笔记懒渲染影响
-  - 位置随滚动实时记录、停下来才写盘；设置里可关闭
-
-### 12. 附件自动清理（图床管家）
-
-- **全自动、零管理**：启动后约 15 秒扫一遍，此后每 24 小时一次（可关）；命令「维护：清理未引用附件」随时手动
-- 候选 = 「全库无任何引用」且「修改时间超过 24 小时」的图片（png / jpg / jpeg / gif / webp / bmp / svg / avif）
-- **双保险判定**：先查 Obsidian 官方链接索引（md / canvas / frontmatter 的嵌入和链接全覆盖），再有候选时把全库文本文件读一遍兜底（代码块里的文件名也算引用）；任何一步读不出来就整体放弃，绝不冒险
-- 动作只有 `trashFile`（回收站，跟随 Obsidian「删除文件」设置），**不做永久删除**；清了几条会在右上角 Notice 里报明细
-
-### 13. 目录页自动化
-
-- 在目录页笔记（如 `00-目录.md`）执行命令「目录：自动补全当前目录页」：**每个 H2 章节 = 同名同级子文件夹**，把子文件夹里「章节正文还没链接过」的笔记按文件名排序补到章节末尾
-- 链接格式跟随库内惯例：`- [[完整路径.md|文件名]]`；「已收录」判定 = 路径或文件名在章节文本里出现过（不重复添加、不误伤手动分组）
-- 章节没有同名子文件夹就跳过；全部改动**一次事务提交（Cmd+Z 一步撤销）**；已齐全时只提示「目录已是最新」，不动笔
-
----
-
-## 设置面板
-
-| 分组 | 内容 |
-|---|---|
-| 图片粘贴与命名 | 自动命名开关、命名模板（实时预览）、`{date}` 日期格式、粘贴自动压缩（格式 / 质量 / 最长边） |
-| 图片分栏 | 默认分栏数、多图粘贴自动成栏、统一行高（预设 + 实时预览）、间距 / 圆角、空分栏占位提示、编辑视图缩略图 |
-| 编辑器增强 | 划词工具条、表格增强、列表增强（让位逻辑见下节） |
-| 文本高亮 | 编辑视图渲染、自定义颜色（7 色 + 一键还原） |
-| 阅读视图美化 | 代码块美化（语言徽标 / 复制 / 行号）、表格斑马纹、图片查看器 |
-| 浮动目录 | 显示浮动目录（Feishu 式右侧悬浮大纲，命令可切换） |
-| 阅读与写作 | 记住阅读位置、粘贴时自动美化中英混排（命令「格式：中英混排美化」可手动执行） |
-| 图库多选插入器 | 搜索范围（全库 / 仅附件目录）、排序（最新 / 最旧 / 文件名） |
-| 附件自动清理 | 自动清理「无引用且超 24h」的图片附件（启停；命令「维护：清理未引用附件」可手动执行） |
-
-底部另有「恢复默认设置」（二次点击确认）。
-
----
-
-## 开发与构建
+## 开发 / Development
 
 ```bash
-cd .obsidian/plugins/feishu-lite
-npm install        # 注意见下方「依赖版本」
-npm run dev        # watch 模式（开发时）
-npm run build      # 类型检查 + 生产构建
+npm install
+npm run build   # 类型检查 + esbuild 生产构建 → main.js
 ```
-
-**启用**：设置 → 第三方插件 → 刷新（重新扫描文件夹）→ 打开 **Feishu Lite**。
-
-**开发循环**：`npm run dev` 保持 watch，改完代码后在插件列表把 Feishu Lite **关掉再打开**（或 `Ctrl+P → Reload app without saving`）即可加载新 `main.js`。
-
-### 依赖版本注意
-
-`obsidian@1.13.1` 类型包把 `@codemirror/state` 钉死在 `6.5.0`、`@codemirror/view` 钉在 `6.38.6`。
-如果以后 `npm install` 报 ERESOLVE，用精确版本重装：
-
-```bash
-npm i -D obsidian@1.13.1 @codemirror/state@6.5.0 @codemirror/view@6.38.6
-```
-
-### 与已有插件的关系（炼化 + 让位）
-
-「炼化」= 把其它插件的核心能力吸收进本插件，并保留运行时**让位机制**：对应原插件只要还在启用，本插件就自动不接管（行为完全交给原插件）；确认满意后停用 / 卸载原插件，能力无缝由本插件接手。
-
-| 原插件 | 炼化内容 | 让位条件 |
-|---|---|---|
-| Advanced Tables | Tab / Shift+Tab / Enter 跳格 + 自动对齐 | Advanced Tables 启用中 |
-| Outliner | Cmd+Shift+↑/↓ 整棵子树移动 | Outliner 启用中 |
-| Mermaid 工具类插件 | 常用 12 类骨架插入 | 无冲突，随时可删 |
-| image-converter | 粘贴图片压缩（WebP / JPEG / 质量 / 最长边） | 设置里「粘贴自动压缩」默认关闭，开了才生效 |
-
-- 图片粘贴 / 拖入在 CM6 最高优先级通道由本插件接管（自动命名 + 多图成栏 + 可选压缩）；image-converter 的其它命令（手动转换等）不受影响
-- 如果想让位给其它插件的粘贴处理：把本插件设置里的「粘贴自动命名」关掉即可
-- 建议保持内置 **Slash commands** 核心插件关闭，避免两个 `/` 菜单打架（本 vault 已关闭）
-
----
-
-## 已知限制
-
-- 分栏块本质是 callout（`> [!img-N]` / `> [!col-N]`）：阅读视图效果最佳；编辑视图中把光标移入块内时 Obsidian 原生会显示源码（图片分栏未编辑行显示为小缩略图；文字分栏在编辑视图是普通块，栏间显示虚线）
-- 文字分栏的分隔必须用单独一行的 `> ---`，且前后留空行；否则会被解析为标题下划线或普通段落
-- 文本高亮不支持跨行选择；源码模式下语法标记不做隐藏
-- 最多 4 栏；多行图片自动换行排列
-- 手机端需同样安装并启用本插件，否则 `[!img-N]` / `[!col-N]` 块在手机上会显示为普通引用块（不排栏）
-- 「代码块美化」开关关闭后，已打开的笔记需重新打开才完全生效
-- 修改「编辑视图渲染」开关后，需重新打开笔记完全生效
-
-## 测试清单（首次启用后过一遍）
-
-1. 新建笔记，行首输入 `/` → 菜单出现；输入 `glk` / `高亮` / `dmk` / `todo` 筛选正常，回车插入正常
-2. `/glk` 回车 → **双栏级联**选类型（左=菜单、右=8 种类型）→ 直接 Enter = 提示块；↑↓ + Enter 选「注意 warning」→ 橙色块；`←` 回左栏换项可预览其它参数，Esc 收起
-3. 截图后 `Cmd+V` → 图片进 `图床/`，文件名形如 `笔记名-20261002-1.png`，正文插入链接
-4. 一次复制 3 张图粘贴 → 自动出现 3 栏网格；切到阅读视图看并排 + 圆角
-5. 选中两行图片 → 命令「图片：选中包成多栏」→ 选 2 栏；再「取消分栏」还原
-6. 命令「图片：从图库多选插入」→ 搜索 + 空格多选 + 回车 → 插入网格
-7. 选中一句话 → 「格式：高亮」→ 选红色 → 阅读视图出现红色高亮；再试第一项「默认（黄色）」→ 原生 `==文字==` 高亮；编辑视图同样渲染
-8. 在 `/bg` 插入的表格里按 Tab / Shift+Tab / Enter 跳格，表格自动对齐；末行 Tab 自动补新行
-9. 写一个多级列表，光标放到子项上按 `Cmd+Shift+↑/↓` → 整棵子树换位（需先停用 Outliner）
-10. `/mmd` → 选「时序图」→ 插入骨架，阅读视图渲染图形
-11. 设置里开「粘贴自动压缩」→ 贴一张大截图 → 附件存为 `.webp` 且体积变小；关掉后恢复原格式
-12. `/wzfl` → 选「2 栏」→ 骨架插入，光标在第一栏；给两栏各写一段文字 + 一个列表，切阅读视图看并排（栏间 `> ---` 前后留空行）；删掉一栏内容看虚线「空栏」提示
-13. 代码块美化：贴一段 5 行以上的代码 → 阅读视图右上角出现语言徽标，悬停出现「复制」；点复制后到别处粘贴验证；行号与代码严格对齐
-14. 表格美化：阅读视图里表格隔行浅色底 + 悬停整行高亮；光标放进表格执行命令「表格：切换列对齐（左/中/右）」连按三次，看分隔行在 `---` / `:---:` / `---:` 之间变化、整表自动对齐
-15. 浮动目录：命令「视图：切换浮动目录」→ 右缘出现一条窄轨（不遮正文）；鼠标悬停 → 展开成卡片；滚动长笔记看高亮跟随（收起态看轨道里的高亮横杠）；点击条目跳转（阅读 / 编辑视图各试一次；再试点**靠文档末尾**的条目——即使已经滚到底、标题顶不到最上，高亮也应停在你点的条目上）；鼠标移开 → 自动收起；展开态点「»」→ 面板整体消失；切到别的笔记看目录跟着换、切到文件树面板不消失
-16. 中英混排：写一段「用Obsidian写笔记更香」→ 执行命令「格式：中英混排美化（加空格）」→ 自动补出空格；中间放一个代码块验证内容不受影响；设置里开「粘贴时自动美化」后粘贴一段中英混排文字再验证
-17. 阅读位置：长笔记阅读视图滚到中间 → 切到别的笔记再切回 → 自动回到刚才位置；关掉设置「记住阅读位置」后不再恢复
-18. 划词工具条：选中一行文字 → 浮现工具条 → 点红点变红高亮；再点蓝点**直接换色**（不叠加标记）；点 `</>` 变行内代码；选多行文字不出现；「编辑器增强」里关掉后不再出现
-19. 表格：`/bg` 回车 → 悬停网格选 4 列 × 3 行 → 点击插入，光标在表头第一格；光标移到数据行，依次执行「表格：向下插入行」「表格：删除当前行」「表格：向右插入列」「表格：删除当前列」，每次表格都保持对齐；光标放表头行执行「表格：删除当前行」→ 出现保护提示不删
-20. 图片查看器：切到阅读视图点一张图 → 浮层出现（大图自动适配屏幕）；滚轮缩放、按住拖拽平移；点击空白或 Esc 关闭；编辑视图 / 画布点图不受影响
-21. 附件自动清理：命令面板执行「维护：清理未引用附件」→ 首次多半提示「没有需要清理的附件」；随后手动放一张不被任何笔记引用的图片进库（刚放入的图未满 24h，不会被动；可跳过自动路径观察命令行为）→ 再执行命令 → 无引用旧图被移入回收站；有引用的图片必须始终不动
-22. 目录页自动化：打开 `想法-思考/个人分享蒸馏/00-目录.md`，先手动删掉一条链接（如「成长与认知」里某条）→ 执行命令「目录：自动补全当前目录页」→ 缺失链接被补回该章节末尾；Cmd+Z 一步还原；再执行一次 → 提示「目录已是最新」
-23. 打开开发者工具（`Cmd+Opt+I`）确认控制台无报错
-
-## v2 候选
-
-- 孤儿图片清理面板（找出 `图床/` 中无人引用的图片）
-- 已有图片批量重命名（配合 `alwaysUpdateLinks` 自动改链）
-- 多选插入器支持直接拖拽排序
-- 列表增强 v2：跨层级移动（左右缩进切换）、有序列表自动重编号
-- 浮动目录 v2：分组折叠、级别过滤、按笔记记忆显隐

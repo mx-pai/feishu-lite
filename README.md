@@ -2,8 +2,31 @@
 
 把飞书文档的编辑体验搬进 Obsidian：**斜杠菜单、图片分栏网格、文字分栏、粘贴自动命名 / 压缩、文本高亮、表格 / 列表增强、Mermaid 骨架、阅读视图美化（含图片查看器）、浮动目录、中英混排美化、阅读位置记忆、附件自动清理（图床管家）、目录页自动化**。
 
-> Feishu-doc-style editing for Obsidian: slash menu, image grids, paste auto-rename / compress, colored highlights, and more.
 > 源码在本仓库 `src/`，发布产物 `main.js`（esbuild 构建）。
+
+---
+
+## English
+
+**Feishu Lite** recreates the Feishu (Lark) document editing experience in Obsidian: a slash menu, image column grids, paste auto-rename and optional compression, colored highlights with a selection toolbar, table and list enhancements, Mermaid snippets, reading-view beautification, a floating outline, CJK–Latin spacing, reading position memory, automatic attachment cleanup, and index-page automation.
+
+Highlights:
+
+- **Slash menu** — type `/` at the start of a line, then filter in Chinese, English, or pinyin (full names and abbreviations). Parameterized commands (callout type, code language, highlight color, Mermaid type) open a two-pane cascading picker, just like Feishu.
+- **Image grids** — `img-2` / `img-3` / `img-4` callouts render 2/3/4-column image layouts in both reading and editing views. Pasting several images at once wraps them into a grid automatically.
+- **Paste auto-rename** — pasted or dropped images are renamed from a template such as `{note}-{date}-{i}` and stored in your attachment folder, with optional WebP / JPEG compression before saving.
+- **Colored highlights** — `=={red}text==` (seven colors) next to the native `==text==`. Select a single line in the editor and a small toolbar appears: click to highlight, recolor, or convert to inline code / strikethrough; click the lit button again to remove.
+- **Table and list enhancements** — Tab / Shift+Tab / Enter cell navigation with automatic alignment, row and column insert / delete, and `Cmd+Shift+↑/↓` to move list subtrees. These features yield automatically while the Advanced Tables or Outliner plugins are enabled.
+- **Reading view polish** — code blocks get a language badge, a copy button, and line numbers; tables get zebra striping; images open in a zoomable, pannable lightbox.
+- **Floating outline** — a Feishu-style outline rail on the right edge that expands on hover, follows your scroll, and jumps to any heading on click.
+- **Also included** — CJK–Latin spacing, reading position memory, unreferenced attachment cleanup (items go to the trash, never a permanent delete), and index-page automation.
+
+### Installation
+
+- **Community plugins**: search for "Feishu Lite" in Settings → Community plugins.
+- **Manual**: download `main.js`, `manifest.json`, and `styles.css` from [Releases](https://github.com/mx-pai/feishu-lite/releases), place them in `<vault>/.obsidian/plugins/feishu-lite/`, then enable the plugin.
+
+Requires Obsidian 1.6.6 or later. MIT licensed.
 
 ---
 

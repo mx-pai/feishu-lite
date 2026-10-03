@@ -1,0 +1,10 @@
+{
+	"id": "feishu-lite",
+	"name": "Feishu Lite",
+	"version": "0.1.0",
+	"minAppVersion": "1.6.6",
+	"description": "飞书文档风格的编辑体验：斜杠菜单、图片分栏网格、粘贴自动命名、彩色高亮。Feishu-doc-style editing for Obsidian.",
+	"author": "mxpai",
+	"authorUrl": "https://github.com/mx-pai",
+	"isDesktopOnly": false
+}

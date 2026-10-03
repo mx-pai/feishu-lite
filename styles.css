@@ -1,0 +1,797 @@
+/* Feishu Lite — 飞书文档风格样式 */
+
+/* ================= 图片分栏网格（> [!img-2] / [!img-3] / [!img-4]） ================= */
+
+.callout[data-callout^="img-"] {
+	background: transparent;
+	border: none;
+	box-shadow: none;
+	padding: 0;
+	margin: 8px 0;
+}
+.callout[data-callout^="img-"] .callout-title {
+	display: none;
+}
+.callout[data-callout^="img-"] .callout-content {
+	display: grid;
+	gap: var(--fl-grid-gap, 8px);
+	padding: 0;
+	background: transparent;
+	border: none;
+	overflow: visible;
+}
+.callout[data-callout="img-2"] .callout-content {
+	grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+.callout[data-callout="img-3"] .callout-content {
+	grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+.callout[data-callout="img-4"] .callout-content {
+	grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+/* Obsidian 会把连续的引用行合并进同一个 <p>（行与行之间只有 <br>）：
+   用 display:contents 把 <p> 从布局中"拆掉"，让每张图各自成为网格项，
+   否则多张图会挤在同一个格子内、沿 <br> 竖排 */
+.callout[data-callout^="img-"] .callout-content > p {
+	display: contents;
+	margin: 0 !important;
+	min-width: 0;
+}
+.callout[data-callout^="img-"] .callout-content br {
+	display: none;
+}
+.callout[data-callout^="img-"] .callout-content img {
+	width: 100%;
+	height: var(--fl-grid-row-height, auto);
+	object-fit: cover;
+	border-radius: var(--fl-grid-radius, 8px);
+	display: block;
+	margin: 0;
+}
+.callout[data-callout^="img-"] .callout-content .internal-embed {
+	display: block;
+	width: 100%;
+	margin: 0;
+	min-width: 0;
+}
+
+/* 空分栏占位提示：还没贴图时显示虚线框 + 提示，贴入图片后自动消失 */
+.callout[data-callout^="img-"] .callout-content:not(:has(img)) {
+	border: 1px dashed var(--background-modifier-border);
+	border-radius: var(--fl-grid-radius, 8px);
+	min-height: 64px;
+	padding: 12px;
+}
+.callout[data-callout^="img-"] .callout-content:not(:has(img))::before {
+	content: "空分栏 · 把图片粘贴或拖进来，自动排栏";
+	color: var(--text-faint);
+	font-size: var(--font-small);
+	grid-column: 1 / -1;
+	align-self: center;
+}
+.callout[data-callout^="img-"] .callout-content:not(:has(img)) > p:empty {
+	display: none;
+}
+
+/* 设置里关闭「空分栏占位提示」后：空分栏不再显示虚线框和提示文字 */
+body.fl-hide-empty-hint .callout[data-callout^="img-"] .callout-content:not(:has(img)) {
+	border: none;
+	min-height: 0;
+	padding: 0;
+}
+body.fl-hide-empty-hint .callout[data-callout^="img-"] .callout-content:not(:has(img))::before {
+	content: none;
+}
+
+/* ================= 编辑视图：分栏源码行的小缩略图 ================= */
+
+/* 光标不在的图片行显示为缩略图（代替 ![[文件名]] 文字）；点该行才显示原文 */
+.fl-src-thumb {
+	display: inline-block;
+	vertical-align: middle;
+}
+.fl-src-thumb img {
+	height: 44px;
+	width: auto;
+	max-width: 180px;
+	vertical-align: middle;
+	border-radius: 6px;
+	border: 1px solid var(--background-modifier-border);
+}
+
+/* ================= 彩色高亮 =={color}文字== ================= */
+
+body {
+	--fl-hl-red: rgba(255, 99, 99, 0.28);
+	--fl-hl-orange: rgba(255, 159, 64, 0.3);
+	--fl-hl-yellow: rgba(255, 217, 0, 0.3);
+	--fl-hl-green: rgba(72, 199, 116, 0.26);
+	--fl-hl-blue: rgba(74, 144, 255, 0.24);
+	--fl-hl-purple: rgba(158, 108, 240, 0.24);
+	--fl-hl-gray: rgba(140, 140, 140, 0.26);
+}
+body.theme-dark {
+	--fl-hl-red: rgba(255, 99, 99, 0.38);
+	--fl-hl-orange: rgba(255, 159, 64, 0.4);
+	--fl-hl-yellow: rgba(255, 217, 0, 0.36);
+	--fl-hl-green: rgba(72, 199, 116, 0.36);
+	--fl-hl-blue: rgba(74, 144, 255, 0.36);
+	--fl-hl-purple: rgba(158, 108, 240, 0.36);
+	--fl-hl-gray: rgba(140, 140, 140, 0.36);
+}
+
+.fl-hl-red { background-color: var(--fl-hl-red); }
+.fl-hl-orange { background-color: var(--fl-hl-orange); }
+.fl-hl-yellow { background-color: var(--fl-hl-yellow); }
+.fl-hl-green { background-color: var(--fl-hl-green); }
+.fl-hl-blue { background-color: var(--fl-hl-blue); }
+.fl-hl-purple { background-color: var(--fl-hl-purple); }
+.fl-hl-gray { background-color: var(--fl-hl-gray); }
+
+/* Live Preview：覆盖主题默认的 .cm-highlight 背景色 */
+span.cm-highlight.fl-hl-red { background-color: var(--fl-hl-red) !important; }
+span.cm-highlight.fl-hl-orange { background-color: var(--fl-hl-orange) !important; }
+span.cm-highlight.fl-hl-yellow { background-color: var(--fl-hl-yellow) !important; }
+span.cm-highlight.fl-hl-green { background-color: var(--fl-hl-green) !important; }
+span.cm-highlight.fl-hl-blue { background-color: var(--fl-hl-blue) !important; }
+span.cm-highlight.fl-hl-purple { background-color: var(--fl-hl-purple) !important; }
+span.cm-highlight.fl-hl-gray { background-color: var(--fl-hl-gray) !important; }
+
+/* Live Preview 隐藏 =={red} 与结尾 == 语法标记（沿用 Obsidian 自身的零字号技巧） */
+.fl-hl-syntax {
+	font-size: 0;
+	letter-spacing: 0;
+}
+
+/* ================= 斜杠菜单 ================= */
+
+.fl-slash-item {
+	display: flex;
+	align-items: baseline;
+	gap: 8px;
+}
+.fl-slash-name {
+	font-weight: 600;
+}
+.fl-slash-hint {
+	color: var(--text-muted);
+	font-size: var(--font-smallest);
+}
+
+/* 通用列表弹窗（高亮块类型 / 代码语言 / 分栏数） */
+.fl-modal-hint {
+	color: var(--text-muted);
+	margin-left: 6px;
+}
+
+/* ================= 图库多选插入器 ================= */
+
+.fl-picker-modal {
+	width: min(760px, 92vw);
+}
+.fl-picker-input {
+	width: 100%;
+	margin-bottom: 8px;
+}
+.fl-picker-list {
+	max-height: 420px;
+	overflow-y: auto;
+	border: 1px solid var(--background-modifier-border);
+	border-radius: 8px;
+}
+.fl-picker-row {
+	display: flex;
+	align-items: center;
+	gap: 10px;
+	padding: 6px 10px;
+	cursor: pointer;
+	border-bottom: 1px solid var(--background-modifier-border);
+}
+.fl-picker-row:last-child {
+	border-bottom: none;
+}
+.fl-picker-row.is-active {
+	background: var(--background-modifier-hover);
+}
+.fl-picker-row.is-selected {
+	background: var(--background-modifier-active-hover, var(--background-modifier-hover));
+}
+.fl-picker-row img {
+	width: 44px;
+	height: 44px;
+	object-fit: cover;
+	border-radius: 6px;
+	flex: 0 0 auto;
+	background: var(--background-secondary);
+}
+.fl-picker-check {
+	width: 18px;
+	flex: 0 0 auto;
+	color: var(--text-muted);
+}
+.fl-picker-name {
+	flex: 1 1 auto;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+.fl-picker-dir {
+	flex: 0 1 auto;
+	color: var(--text-faint);
+	font-size: var(--font-smallest);
+	max-width: 35%;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+.fl-picker-footer {
+	display: flex;
+	justify-content: space-between;
+	align-items: center;
+	margin-top: 8px;
+}
+.fl-picker-count {
+	color: var(--text-muted);
+	font-size: var(--font-small);
+}
+
+/* ================= 设置面板 ================= */
+
+.fl-settings .fl-setting-preview {
+	margin-top: 6px;
+	color: var(--text-muted);
+	font-size: var(--font-small);
+	font-variant-numeric: tabular-nums;
+}
+.fl-settings .fl-preset-row {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 6px;
+	margin: 6px 0 16px;
+}
+.fl-settings button.fl-chip {
+	padding: 2px 12px;
+	border-radius: 999px;
+	border: 1px solid var(--background-modifier-border);
+	background: var(--background-secondary);
+	color: var(--text-muted);
+	font-size: var(--font-small);
+	cursor: pointer;
+	box-shadow: none;
+}
+.fl-settings button.fl-chip:hover {
+	background: var(--background-modifier-hover);
+	color: var(--text-normal);
+}
+.fl-settings .fl-slider-val {
+	min-width: 3.5em;
+	margin-left: 8px;
+	text-align: right;
+	color: var(--text-muted);
+	font-size: var(--font-small);
+	font-variant-numeric: tabular-nums;
+}
+.fl-settings .fl-color-grid {
+	display: grid;
+	grid-template-columns: repeat(7, minmax(0, 1fr));
+	gap: 8px;
+	margin: 6px 0 16px;
+}
+.fl-settings .fl-color-cell {
+	display: flex;
+	flex-direction: column;
+	align-items: center;
+	gap: 4px;
+}
+.fl-settings .fl-color-cell input[type="color"] {
+	width: 100%;
+	height: 30px;
+	padding: 2px;
+	border: 1px solid var(--background-modifier-border);
+	border-radius: 6px;
+	background: var(--background-secondary);
+	cursor: pointer;
+}
+.fl-settings .fl-color-label {
+	color: var(--text-muted);
+	font-size: var(--font-smallest);
+}
+.fl-settings .fl-grid-preview {
+	display: grid;
+	grid-template-columns: repeat(3, minmax(0, 1fr));
+	gap: var(--fl-grid-gap, 8px);
+	margin: 6px 0 18px;
+}
+.fl-settings .fl-grid-preview > div {
+	height: var(--fl-grid-row-height, auto);
+	min-height: 72px;
+	max-height: 160px;
+	border-radius: var(--fl-grid-radius, 8px);
+	background: linear-gradient(135deg, var(--background-modifier-hover), var(--background-modifier-border));
+}
+.fl-settings .fl-preview-cap {
+	margin: 2px 0 6px;
+}
+.fl-settings .fl-reset-item {
+	margin-top: 32px;
+	border-top: 1px solid var(--background-modifier-border);
+	padding-top: 12px;
+}
+
+/* ---------- 级联选项菜单（斜杠菜单回车后右侧展开，替代二次弹窗） ---------- */
+.fl-cascade {
+	position: fixed;
+	z-index: 1000;
+	display: flex;
+	align-items: flex-start;
+	gap: 6px;
+	animation: fl-cascade-in 100ms ease-out;
+}
+.fl-cascade-panel {
+	display: flex;
+	flex-direction: column;
+	min-width: 200px;
+	max-width: 320px;
+	background: var(--background-secondary);
+	border: 1px solid var(--background-modifier-border);
+	border-radius: 10px;
+	box-shadow: 0 8px 24px rgba(0, 0, 0, 0.25);
+	padding: 6px;
+}
+.fl-cascade-panel.is-focused {
+	border-color: var(--background-modifier-border-focus);
+}
+@keyframes fl-cascade-in {
+	from {
+		opacity: 0;
+		transform: translateX(-4px);
+	}
+	to {
+		opacity: 1;
+		transform: none;
+	}
+}
+.fl-cascade-title {
+	font-size: var(--font-ui-smaller);
+	color: var(--text-muted);
+	padding: 4px 8px 6px;
+}
+.fl-cascade-list {
+	max-height: 320px;
+	overflow-y: auto;
+}
+.fl-cascade-item {
+	display: flex;
+	align-items: baseline;
+	justify-content: space-between;
+	gap: 12px;
+	padding: 6px 10px;
+	border-radius: 6px;
+	cursor: pointer;
+}
+.fl-cascade-item.is-active {
+	background: var(--background-modifier-hover);
+}
+.fl-cascade-name {
+	font-size: var(--font-ui-small);
+	color: var(--text-normal);
+	white-space: nowrap;
+}
+.fl-cascade-hint {
+	font-size: var(--font-ui-smaller);
+	color: var(--text-faint);
+	white-space: nowrap;
+	overflow: hidden;
+	text-overflow: ellipsis;
+}
+.fl-cascade-empty {
+	padding: 8px 10px;
+	color: var(--text-faint);
+	font-size: var(--font-ui-smaller);
+}
+.fl-cascade-foot {
+	margin-top: 4px;
+	padding: 6px 8px 2px;
+	border-top: 1px solid var(--background-modifier-border);
+	font-size: var(--font-ui-smaller);
+	color: var(--text-faint);
+}
+
+/* ================= 文字分栏（> [!col-2] / [!col-3] / [!col-4]） ================= */
+
+/* 阅读视图：透明化 callout 外壳，内部由 .fl-col 排成并列的栏 */
+.markdown-rendered .callout[data-callout^="col-"] {
+	background: transparent;
+	border: none;
+	box-shadow: none;
+	padding: 0;
+	margin: 8px 0;
+}
+.markdown-rendered .callout[data-callout^="col-"] .callout-title {
+	display: none;
+}
+.markdown-rendered .callout[data-callout^="col-"] .callout-content {
+	padding: 0;
+	background: transparent;
+	border: none;
+	overflow: visible;
+}
+.fl-col {
+	display: grid;
+	grid-template-columns: repeat(var(--fl-cols, 2), minmax(0, 1fr));
+	gap: var(--fl-grid-gap, 8px);
+}
+.fl-col-item {
+	min-width: 0;
+}
+.fl-col-item > :first-child {
+	margin-top: 0;
+}
+.fl-col-item > :last-child {
+	margin-bottom: 0;
+}
+.fl-col-empty {
+	border: 1px dashed var(--background-modifier-border);
+	border-radius: var(--fl-grid-radius, 8px);
+	min-height: 64px;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	color: var(--text-faint);
+	font-size: var(--font-small);
+}
+body.fl-hide-empty-hint .fl-col-empty {
+	border: none;
+	min-height: 0;
+}
+
+/* 编辑视图（Live Preview）：透明化 + 隐藏标题；栏间 --- 显示为虚线，提示分栏结构 */
+.cm-editor .callout[data-callout^="col-"] {
+	background: transparent;
+	border: none;
+	box-shadow: none;
+	padding: 0;
+}
+.cm-editor .callout[data-callout^="col-"] .callout-title {
+	display: none;
+}
+.cm-editor .callout[data-callout^="col-"] hr {
+	border: none;
+	border-top: 1px dashed var(--background-modifier-border);
+	margin: 12px 0;
+}
+
+/* ================= 阅读视图：代码块美化（徽标 / 复制 / 行号） ================= */
+
+.fl-code-wrap {
+	position: relative;
+}
+.fl-code-wrap pre {
+	margin: 0;
+	width: 100%;
+}
+.fl-code-wrap pre.fl-line-numbers {
+	padding-left: 3.2em;
+}
+.fl-code-actions {
+	position: absolute;
+	top: 8px;
+	right: 10px;
+	z-index: 2;
+	display: flex;
+	align-items: center;
+	gap: 6px;
+	opacity: 0.25;
+	transition: opacity 120ms ease;
+}
+.fl-code-wrap:hover .fl-code-actions {
+	opacity: 1;
+}
+.fl-code-lang {
+	font-size: var(--font-ui-smaller);
+	color: var(--text-faint);
+	background: var(--background-secondary);
+	border-radius: 4px;
+	padding: 1px 6px;
+	user-select: none;
+}
+.fl-code-copy {
+	font-size: var(--font-ui-smaller);
+	line-height: 1.4;
+	height: auto;
+	padding: 1px 8px;
+	border-radius: 4px;
+	cursor: pointer;
+	background: var(--background-secondary);
+	border: 1px solid var(--background-modifier-border);
+	color: var(--text-muted);
+	box-shadow: none;
+}
+.fl-code-copy:hover {
+	background: var(--background-modifier-hover);
+	color: var(--text-normal);
+}
+.fl-code-lines {
+	position: absolute;
+	top: 0;
+	left: 0;
+	bottom: 0;
+	width: 2.4em;
+	padding-right: 8px;
+	text-align: right;
+	white-space: pre;
+	overflow: hidden;
+	color: var(--text-faint);
+	opacity: 0.5;
+	font-family: var(--font-monospace);
+	user-select: none;
+	pointer-events: none;
+}
+
+/* ================= 阅读视图：表格斑马纹 + 悬停行高亮 ================= */
+
+body.fl-table-pretty .markdown-rendered table tbody tr {
+	transition: background-color 100ms ease;
+}
+body.fl-table-pretty .markdown-rendered table tbody tr:nth-child(even) {
+	background-color: var(--background-primary-alt);
+}
+body.fl-table-pretty .markdown-rendered table tbody tr:hover {
+	background-color: var(--background-modifier-hover);
+}
+
+/* ================= 浮动目录（Feishu 式右侧悬浮大纲） ================= */
+
+/* 收起态 = 右缘一条窄轨：每条标题一根小横杠、当前章节点亮 —— 常驻也不遮正文；
+   悬停约 150ms 后展开为完整卡片（延时由 toc.ts 控制），鼠标移开自动收起 */
+.fl-toc {
+	position: absolute;
+	/* 垂直居中贴在右缘（不贴顶）：top 50% + 位移自居中，收起/展开时围绕中心伸缩 */
+	top: 50%;
+	transform: translateY(-50%);
+	right: 14px;
+	width: 16px;
+	max-height: min(56vh, 520px);
+	display: flex;
+	flex-direction: column;
+	background: color-mix(in srgb, var(--background-secondary) 38%, transparent);
+	border: 1px solid color-mix(in srgb, var(--background-modifier-border) 40%, transparent);
+	border-radius: 99px;
+	box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
+	z-index: 30;
+	overflow: hidden;
+	font-size: var(--font-ui-smaller);
+	transition: width 150ms ease, background-color 150ms ease, border-radius 150ms ease;
+}
+/* 展开态（is-open 由 toc.ts 悬停 150ms 后添加）：磨砂半透明卡片 */
+.fl-toc.is-open {
+	width: 216px;
+	background: var(--background-secondary); /* 老版本兜底（不支持 color-mix 时用实色） */
+	background: color-mix(in srgb, var(--background-secondary) 92%, transparent);
+	backdrop-filter: blur(12px) saturate(1.25);
+	-webkit-backdrop-filter: blur(12px) saturate(1.25);
+	border-color: color-mix(in srgb, var(--background-modifier-border) 75%, transparent);
+	border-radius: 10px;
+	box-shadow: 0 4px 16px rgba(0, 0, 0, 0.1);
+}
+.fl-toc-head {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	padding: 5px 6px 5px 12px;
+	color: var(--text-muted);
+	border-bottom: 1px solid color-mix(in srgb, var(--background-modifier-border) 75%, transparent);
+}
+.fl-toc-title {
+	font-weight: var(--font-medium);
+	letter-spacing: 0.04em;
+}
+.fl-toc-hide {
+	margin-left: auto; /* 锁死右端：不依赖主题对 flex 的改动 */
+	height: auto;
+	padding: 0 6px;
+	line-height: 1.5;
+	background: transparent;
+	border: none;
+	box-shadow: none;
+	color: var(--text-faint);
+	cursor: pointer;
+}
+.fl-toc-hide:hover {
+	color: var(--text-normal);
+	background: var(--background-modifier-hover);
+	border-radius: 4px;
+}
+.fl-toc-list {
+	overflow-y: auto;
+	padding: 6px;
+}
+.fl-toc-item {
+	padding: 3px 8px;
+	border-radius: 5px;
+	color: var(--text-muted);
+	cursor: pointer;
+	white-space: nowrap;
+	overflow: hidden;
+	text-overflow: ellipsis;
+}
+.fl-toc-item:hover {
+	background: var(--background-modifier-hover);
+	color: var(--text-normal);
+}
+.fl-toc-item.is-active {
+	color: var(--interactive-accent);
+	font-weight: var(--font-medium);
+	background: var(--background-modifier-hover);
+	box-shadow: inset 2px 0 0 var(--interactive-accent);
+}
+.fl-toc-empty {
+	padding: 8px;
+	color: var(--text-faint);
+}
+
+/* ---- 收起态内部形态：标题栏 / 空提示隐藏，每条标题变一根小横杠 ---- */
+.fl-toc:not(.is-open) .fl-toc-head {
+	display: none;
+}
+.fl-toc:not(.is-open) .fl-toc-list {
+	padding: 10px 0;
+	scrollbar-width: none;
+}
+.fl-toc:not(.is-open) .fl-toc-item {
+	width: 8px;
+	height: 3px;
+	margin: 5px auto;
+	padding: 0 !important; /* 压掉按层级设置的内联左缩进 */
+	font-size: 0;
+	border-radius: 2px;
+	background: var(--text-faint);
+	opacity: 0.4;
+}
+.fl-toc:not(.is-open) .fl-toc-item:hover {
+	background: var(--text-faint); /* 展开前的短暂悬停：横杠保持稳定，展开后再高亮 */
+}
+.fl-toc:not(.is-open) .fl-toc-item.is-active {
+	background: var(--interactive-accent);
+	box-shadow: none;
+	opacity: 1;
+}
+.fl-toc:not(.is-open) .fl-toc-empty {
+	display: none;
+}
+
+/* ================= 划词工具条（选中文字浮现：高亮换色 / 行内代码） ================= */
+
+.fl-selbar {
+	position: fixed;
+	z-index: 40;
+	display: none;
+	align-items: center;
+	gap: 4px;
+	padding: 4px 7px;
+	background: var(--background-secondary);
+	border: 1px solid var(--background-modifier-border);
+	border-radius: 8px;
+	box-shadow: 0 4px 14px rgba(0, 0, 0, 0.14);
+	user-select: none;
+}
+.fl-selbar.is-on {
+	display: flex;
+}
+.fl-selbar-dot {
+	width: 14px;
+	height: 14px;
+	border-radius: 50%;
+	cursor: pointer;
+	border: 1px solid color-mix(in srgb, var(--background-modifier-border) 70%, transparent);
+	transition: transform 80ms ease;
+}
+.fl-selbar-dot:hover {
+	transform: scale(1.25);
+}
+.fl-selbar-sep {
+	width: 1px;
+	height: 14px;
+	margin: 0 2px;
+	background: var(--background-modifier-border);
+}
+.fl-selbar-code {
+	font-family: var(--font-monospace);
+	font-size: 11px;
+	line-height: 1.5;
+	padding: 1px 7px;
+	border-radius: 5px;
+	cursor: pointer;
+	color: var(--text-muted);
+	border: 1px solid transparent;
+}
+.fl-selbar-code:hover {
+	background: var(--background-modifier-hover);
+	color: var(--text-normal);
+}
+.fl-selbar-strike {
+	font-family: var(--font-monospace);
+	font-size: 11px;
+	line-height: 1.5;
+	padding: 1px 7px;
+	border-radius: 5px;
+	cursor: pointer;
+	color: var(--text-muted);
+	border: 1px solid transparent;
+	text-decoration: line-through;
+}
+.fl-selbar-strike:hover {
+	background: var(--background-modifier-hover);
+	color: var(--text-normal);
+}
+.fl-selbar-dot.is-active {
+	outline: 1.5px solid var(--text-normal);
+	outline-offset: 1.5px;
+}
+.fl-selbar-code.is-active,
+.fl-selbar-strike.is-active {
+	background: var(--background-modifier-hover);
+	color: var(--text-normal);
+	border-color: var(--background-modifier-border);
+}
+
+/* 表格插入选择器（飞书式悬停网格：/bg 或「插入：表格」唤起） */
+.fl-table-picker .fl-cascade-title {
+	text-align: center;
+}
+.fl-table-picker-grid {
+	display: grid;
+	grid-template-columns: repeat(8, 16px);
+	gap: 3px;
+	padding: 6px 8px 4px;
+	user-select: none;
+}
+.fl-table-picker-cell {
+	width: 16px;
+	height: 16px;
+	border: 1px solid var(--background-modifier-border);
+	border-radius: 3px;
+	cursor: pointer;
+	transition: background 60ms ease, border-color 60ms ease;
+}
+.fl-table-picker-cell.is-on {
+	background: color-mix(in srgb, var(--interactive-accent) 35%, transparent);
+	border-color: var(--interactive-accent);
+}
+
+/* 图片查看器（阅读视图点图 → 灯箱） */
+.fl-lightbox {
+	position: fixed;
+	inset: 0;
+	z-index: 60;
+	display: flex;
+	overflow: auto;
+	cursor: zoom-out;
+	background: color-mix(in srgb, var(--background-primary) 78%, #000);
+}
+.fl-lightbox-img {
+	margin: auto; /* flex + overflow 下的可靠居中：小图居中、大图可滚到边缘 */
+	max-width: none;
+	border-radius: 6px;
+	box-shadow: 0 12px 48px rgba(0, 0, 0, 0.45);
+	cursor: grab;
+	user-select: none;
+	-webkit-user-drag: none;
+}
+.fl-lightbox-img:active {
+	cursor: grabbing;
+}
+.fl-lightbox-hint {
+	position: fixed;
+	bottom: 14px;
+	left: 50%;
+	transform: translateX(-50%);
+	font-size: 12px;
+	color: var(--text-muted);
+	background: var(--background-secondary);
+	padding: 4px 12px;
+	border-radius: 999px;
+	opacity: 0.9;
+	pointer-events: none;
+	z-index: 61;
+}

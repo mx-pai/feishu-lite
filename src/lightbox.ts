@@ -1,10 +1,12 @@
+import { EditorView } from "@codemirror/view";
 import type FeishuLitePlugin from "./main";
 
 /**
  * 图片查看器（灯箱）：
- * - 阅读视图点击图片 → 全屏浮层：滚轮缩放（以光标为锚点）、拖拽平移、Esc / 点击空白关闭
- * - 只在阅读视图接管（编辑视图 / 画布不动）；图片外层有链接时放行链接
- * - 让位说明：oz-image-plugin 仅在「编辑器内」渲染图片，无阅读视图查看器，二者不冲突，无需让位
+ * - 阅读视图 / 编辑视图（Live Preview）点击图片 → 全屏浮层：滚轮缩放（以光标为锚点）、拖拽平移、Esc / 点击空白关闭
+ * - 编辑视图走 CM6 mousedown 通道接管：光标不跳到图片行、图片保持渲染；图片行已展开源码时点到的是文本、不进灯箱
+ * - 图片外层有链接时放行链接；源码行缩略图（.fl-src-thumb）点击仍回源码；画布不受影响
+ * - 设置项「图片查看器」可整体关闭；oz-image-plugin 只做编辑器内渲染、无查看器，二者不冲突
  * - 设置项「图片查看器」可整体关闭
  */
 
@@ -138,4 +140,23 @@ export function registerLightbox(plugin: FeishuLitePlugin): void {
 		},
 		true
 	);
+}
+
+/** 编辑视图（Live Preview）通道：点击渲染出的图片 → 灯箱（源码行缩略图除外，点击它仍回源码编辑） */
+export function lightboxEditorExtension(plugin: FeishuLitePlugin) {
+	return EditorView.domEventHandlers({
+		mousedown: (e, view) => {
+			if (e.button !== 0) return false;
+			if (!plugin.settings.imageLightbox) return false;
+			const t = e.target;
+			if (!(t instanceof HTMLElement)) return false;
+			const img = t.closest("img");
+			if (!img || !view.contentDOM.contains(img)) return false;
+			if (img.closest(".fl-src-thumb")) return false;
+			if (img.closest("a")) return false;
+			e.preventDefault();
+			openLightbox(img.src, img.alt);
+			return true; // 已接管：光标不移动、该行不翻出源码
+		},
+	});
 }

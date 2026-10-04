@@ -7,7 +7,7 @@ import { insertGridSkeleton, openImagePicker, syncGridEmptyState, unwrapGrid, wr
 import { highlightPostProcessor, highlightViewPlugin, pickColorAndHighlight } from "./highlight";
 import { colPostProcessor } from "./column";
 import { codePrettyPostProcessor } from "./code-pretty";
-import { registerLightbox } from "./lightbox";
+import { lightboxEditorExtension, registerLightbox } from "./lightbox";
 import { initToc, syncToc } from "./toc";
 import { gridSourcePlugin } from "./grid-source";
 import { cycleColumnAlign, editTableAtCursor, formatTableAtCursor, tableEnhanceExtension } from "./table-enhance";
@@ -55,6 +55,9 @@ export default class FeishuLitePlugin extends Plugin {
 
 		// 图片查看器：阅读视图点击图片 → 悬浮灯箱（滚轮缩放 / 拖拽平移 / Esc 关闭）
 		registerLightbox(this);
+
+		// 编辑视图（Live Preview）：点击渲染出的图片同样悬浮查看
+		this.registerEditorExtension(lightboxEditorExtension(this));
 
 		// 编辑视图：分栏源码态下用缩略图代替文件名文字
 		this.registerEditorExtension(gridSourcePlugin(this));

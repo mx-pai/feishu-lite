@@ -511,7 +511,7 @@ export class FlSettingTab extends PluginSettingTab {
 
 		new Setting(el)
 			.setName("图片查看器")
-			.setDesc("点击阅读视图里的图片 → 悬浮查看：滚轮缩放、拖拽平移、Esc / 点击空白关闭（视频 / 画布 / 编辑视图不受影响）")
+			.setDesc("点击图片 → 悬浮查看：滚轮缩放、拖拽平移、Esc / 点击空白关闭（阅读 / 编辑视图均可；视频 / 画布不受影响）")
 			.addToggle((t) =>
 				t.setValue(this.plugin.settings.imageLightbox).onChange(async (v) => {
 					this.plugin.settings.imageLightbox = v;

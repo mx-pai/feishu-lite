@@ -2,7 +2,7 @@
 
 **飞书文档风格的 Obsidian 编辑体验** —— 斜杠菜单、图片分栏、粘贴自动命名、彩色高亮、表格 / 列表增强、浮动目录。
 
-Feishu-doc-style editing for Obsidian: slash menu, image grids, paste auto-rename, colored highlights, and more.
+Lark-doc-style editing for Obsidian: slash menu, image grids, paste auto-rename, colored highlights, and more.
 
 ## 功能亮点
 

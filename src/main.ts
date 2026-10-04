@@ -2,6 +2,7 @@ import { Plugin } from "obsidian";
 import { DEFAULT_SETTINGS, FlSettingTab, applyCssVars } from "./settings";
 import type { FlSettings } from "./settings";
 import { SlashSuggest } from "./slash";
+import { closeCascade } from "./cascade";
 import { registerImagePaste } from "./image-paste";
 import { insertGridSkeleton, openImagePicker, syncGridEmptyState, unwrapGrid, wrapSelectionIntoGrid } from "./image-grid";
 import { highlightPostProcessor, highlightViewPlugin, pickColorAndHighlight } from "./highlight";
@@ -21,12 +22,12 @@ import { updateIndexPage } from "./index-page";
 import {
 	insertCallout,
 	insertCodeBlock,
-	insertDate,
 	insertDivider,
 	insertQuote,
 	insertTodo,
+	openDatePicker,
 } from "./slash-items";
-import { openTablePicker } from "./table-picker";
+import { closeTablePicker, openTablePicker } from "./table-picker";
 
 export default class FeishuLitePlugin extends Plugin {
 	settings!: FlSettings;
@@ -86,6 +87,12 @@ export default class FeishuLitePlugin extends Plugin {
 		// 图片附件自动清理（图床管家）：启动 + 每 24h 扫一遍无引用旧图
 		registerCleaner(this);
 
+		// 停用 / 卸载时收起可能开着的浮层（级联菜单 / 表格选择器）
+		this.register(() => {
+			closeCascade();
+			closeTablePicker();
+		});
+
 		this.registerCommands();
 	}
 
@@ -97,7 +104,7 @@ export default class FeishuLitePlugin extends Plugin {
 		this.addCommand({ id: "insert-quote", name: "插入：引用", editorCallback: (e) => insertQuote(e) });
 		this.addCommand({ id: "insert-divider", name: "插入：分割线", editorCallback: (e) => insertDivider(e) });
 		this.addCommand({ id: "insert-table", name: "插入：表格", editorCallback: (e) => openTablePicker(e) });
-		this.addCommand({ id: "insert-date", name: "插入：日期", editorCallback: (e) => insertDate(e) });
+		this.addCommand({ id: "insert-date", name: "插入：日期", editorCallback: (e) => openDatePicker(e) });
 		this.addCommand({ id: "insert-image-grid", name: "图片：插入分栏网格", editorCallback: (e) => insertGridSkeleton(this, e) });
 		this.addCommand({
 			id: "pick-images",

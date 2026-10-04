@@ -74,6 +74,7 @@ export class ImagePickerModal extends Modal {
 	}
 
 	private onKey(e: KeyboardEvent): void {
+		if (e.isComposing || e.key === "Process") return; // IME 组合中不拦截：候选窗的上下键 / 空格 / 回车都放行
 		if (e.key === "ArrowDown") {
 			e.preventDefault();
 			this.move(1);

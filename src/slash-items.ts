@@ -104,10 +104,25 @@ export function insertDivider(editor: Editor): void {
 	else editor.replaceSelection("\n---\n");
 }
 
-export function insertDate(editor: Editor): void {
+const WEEK_CN = ["日", "一", "二", "三", "四", "五", "六"];
+
+/** 日期命令：弹出格式级联（选项即今天日期的实际写法，所见即所得） */
+export function openDatePicker(editor: Editor): void {
 	const d = new Date();
 	const p = (n: number) => (n < 10 ? "0" + n : String(n));
-	editor.replaceSelection(`${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`);
+	const iso = `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`;
+	const cn = `${d.getFullYear()}年${d.getMonth() + 1}月${d.getDate()}日`;
+	const week = `周${WEEK_CN[d.getDay()] ?? ""}`;
+	const monthDay = `${d.getMonth() + 1}月${d.getDate()}日`;
+	const withTime = `${iso} ${p(d.getHours())}:${p(d.getMinutes())}`;
+	const options: ListOption<string>[] = [
+		{ label: iso, value: iso, hint: "标准" },
+		{ label: cn, value: cn, hint: "中文" },
+		{ label: `${cn}（${week}）`, value: `${cn}（${week}）`, hint: "中文 · 带星期" },
+		{ label: monthDay, value: monthDay, hint: "月日" },
+		{ label: withTime, value: withTime, hint: "日期 + 时间" },
+	];
+	openCascade(editor, "日期 · 选格式", options, (v) => editor.replaceSelection(v));
 }
 
 export const SLASH_ITEMS: SlashItem[] = [
@@ -254,8 +269,8 @@ export const SLASH_ITEMS: SlashItem[] = [
 	{
 		id: "date",
 		name: "日期",
-		hint: "/rq · 插入今天日期",
+		hint: "/rq · 回车选格式（标准 / 中文 / 带星期 / 月日 / 含时间）",
 		keys: ["date", "riqi", "rq", "日期", "today"],
-		run: (_p, e) => insertDate(e),
+		run: (_p, e) => openDatePicker(e),
 	},
 ];

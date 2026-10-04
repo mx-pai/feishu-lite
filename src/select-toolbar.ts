@@ -59,6 +59,7 @@ export function selectToolbarExtension(plugin: FeishuLitePlugin) {
 					write: (coords) => this.writeBar(coords),
 				};
 				this.onKeyDown = (e: KeyboardEvent) => {
+					if (e.isComposing || e.key === "Process") return; // IME 组合中的 Esc 只取消候选，不收起工具条
 					if (e.key === "Escape" && this.shown) {
 						this.dismissed = true;
 						this.hide();

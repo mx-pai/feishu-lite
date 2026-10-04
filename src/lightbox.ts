@@ -142,6 +142,9 @@ export function registerLightbox(plugin: FeishuLitePlugin): void {
 		},
 		true
 	);
+
+	// 停用 / 卸载插件时收起灯箱：清掉浮层与挂在 document 上的监听，避免残留
+	plugin.register(() => closeCurrent?.());
 }
 
 /** 编辑视图（Live Preview）通道：点击渲染出的图片 → 灯箱（源码行缩略图除外，点击它仍回源码编辑） */

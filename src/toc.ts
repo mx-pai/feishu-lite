@@ -78,6 +78,13 @@ export function initToc(plugin: FeishuLitePlugin): void {
 		})
 	);
 
+	// 停用 / 卸载插件时拆掉面板与滚动监听。否则残留的 .fl-toc DOM 会在样式表
+	// 被撤销后以裸列表的形态出现在正文下方（state 置空，重新启用时干净初始化）
+	plugin.register(() => {
+		teardown();
+		state = null;
+	});
+
 	syncToc(plugin);
 }
 
@@ -107,6 +114,8 @@ export function syncToc(plugin: FeishuLitePlugin): void {
 function ensurePanel(plugin: FeishuLitePlugin): void {
 	const st = state;
 	if (!st || !st.view || st.panel) return;
+	// 保险：清掉历史版本泄漏的残留面板（旧版卸载时未清理的 DOM），避免出现两个目录
+	st.view.containerEl.querySelectorAll(":scope > .fl-toc").forEach((el) => el.remove());
 	const panel = st.view.containerEl.createDiv({ cls: "fl-toc" });
 
 	const head = panel.createDiv({ cls: "fl-toc-head" });

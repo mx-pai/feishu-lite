@@ -28,6 +28,11 @@ export function insertTableSized(editor: Editor, rows: number, cols: number): vo
 
 let closePicker: (() => void) | null = null;
 
+/** 停用 / 卸载插件时收起选择器（由 main.ts 注册；未打开时无操作） */
+export function closeTablePicker(): void {
+	closePicker?.();
+}
+
 export function openTablePicker(editor: Editor, onPick?: (rows: number, cols: number) => void): void {
 	closePicker?.();
 	const onPicked = onPick ?? ((rows: number, cols: number) => insertTableSized(editor, rows, cols));

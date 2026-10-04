@@ -4,6 +4,7 @@ import { buildImageName } from "./naming";
 import type { DateStyle } from "./naming";
 import { HL_COLORS } from "./highlight";
 import { syncToc } from "./toc";
+import { clearReadPositions } from "./read-position";
 
 export interface FlSettings {
 	/** 粘贴/拖入图片时按模板重命名 */
@@ -178,7 +179,6 @@ export class FlSettingTab extends PluginSettingTab {
 		this.renderWriting(containerEl);
 		this.renderPicker(containerEl);
 		this.renderAttach(containerEl);
-		this.renderCheatsheet(containerEl);
 		this.renderReset(containerEl);
 	}
 
@@ -624,27 +624,7 @@ export class FlSettingTab extends PluginSettingTab {
 			);
 	}
 
-	// ---------------- 语法速查 & 恢复默认 ----------------
-
-	private renderCheatsheet(el: HTMLElement): void {
-		new Setting(el).setName("语法速查").setHeading();
-		const add = (text: string) => el.createEl("p", { text, cls: "setting-item-description" });
-		add("图片分栏：> [!img-2] / [!img-3] / [!img-4]，内容每行一张图片；斜杠菜单 /tpfl（/tpfl2、/3栏 指定栏数）。");
-		add("文字分栏：> [!col-2] / [!col-3] / [!col-4]，栏间用单独一行的「> ---」分隔（前后留空行）；斜杠菜单 /wzfl 选栏数。");
-		add("文本高亮：默认 ==文字==（黄色）；彩色 =={red}文字==，颜色 red / orange / yellow / green / blue / purple / gray。");
-		add(`命名模板变量：{note} 笔记名 · {date} 日期 · {time} 时间 · {i} 序号；当前示例：${this.previewName()}。`);
-		add("斜杠菜单常用键：/glk 高亮块 · /dmk 代码块 · /mmd Mermaid 图 · /tp 图库选图 · /dl 选中包成多栏 · /hl 高亮 · /rq 日期。");
-		add("表格增强：光标在表格里按 Tab / Shift+Tab / Enter 跳格并自动对齐；命令「表格：格式化当前表格」可整理粘进来的乱表，「表格：切换列对齐（左/中/右）」逐档切换当前列对齐；斜杠 /bg 或命令「插入：表格」用悬停网格选行列；加行加列删行删列用「表格：向上/向下插入行」「表格：向左/向右插入列」「表格：删除当前行/列」。");
-		add("阅读视图美化：代码块语言徽标 / 复制 / 行号、表格斑马纹、图片查看器（点击图片放大：滚轮缩放 / 拖拽平移 / Esc 或点击空白关闭）（设置面板「阅读视图美化」里开关）。");
-	add("附件自动清理：启动及每 24h 自动把「全库无引用且超 24h」的图片附件移入回收站（可找回）；命令「维护：清理未引用附件」手动触发；「附件自动清理」里开关。");
-	add("目录页自动化：在目录页执行命令「目录：自动补全当前目录页」——H2 章节 = 同名子文件夹，缺失的笔记链接补到章节末尾（一次事务、Cmd+Z 可撤销）。");
-		add("浮动目录：命令「视图：切换浮动目录」开关右侧悬浮大纲（默认收成右缘窄轨、悬停展开；滚动跟随高亮、点击跳转，跳转后高亮停在该条）；面板右上角「»」收起。");
-		add("列表增强：Cmd+Shift+↑ / ↓ 整棵子树与相邻同级项换位。");
-		add("划词工具条：选中单行文字即浮现——色点一键高亮 / 换色（黄点 = 默认 ==文字==）、</> 变行内代码；「编辑器增强」里可关。");
-		add("中英混排：命令「格式：中英混排美化（加空格）」把中文与英文 / 数字之间补上空格（代码块 / 链接 / 公式内不处理）；设置里可开「粘贴时自动美化」。");
-		add("阅读位置记忆：按笔记记住上次读到的位置，重开自动恢复（阅读视图生效）；可在设置「阅读与写作」里关闭。");
-		add("Mermaid 图：斜杠 /mmd（或命令「插入：Mermaid 图」）选择流程图 / 时序图 / 甘特图等类型，插入带示例的骨架。");
-	}
+	// ---------------- 恢复默认 ----------------
 
 	private renderReset(el: HTMLElement): void {
 		const item = new Setting(el)
@@ -667,7 +647,9 @@ export class FlSettingTab extends PluginSettingTab {
 				}
 				if (timer !== null) window.clearTimeout(timer);
 				Object.assign(this.plugin.settings, JSON.parse(JSON.stringify(DEFAULT_SETTINGS)) as FlSettings);
+				clearReadPositions(); // 阅读位置表已换新引用：模块内 map 同步清空，防止旧记录被写回
 				await this.plugin.saveSettings();
+				syncToc(this.plugin); // 浮动目录可见性可能变化：立即生效
 				this.refresh();
 				new Notice("Feishu Lite：已恢复默认设置");
 			});

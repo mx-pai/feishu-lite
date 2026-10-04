@@ -16,6 +16,11 @@ import type { SlashItem } from "./slash-items";
 
 let closeCurrent: (() => void) | null = null;
 
+/** 停用 / 卸载插件时收起当前菜单（由 main.ts 注册；无菜单时无操作） */
+export function closeCascade(): void {
+	closeCurrent?.();
+}
+
 function runGuarded(fn: () => void | Promise<void>): void {
 	Promise.resolve()
 		.then(fn)

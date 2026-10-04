@@ -34,7 +34,21 @@ export function initReadPosition(plugin: FeishuLitePlugin): void {
 	plugin.registerEvent(plugin.app.workspace.on("layout-change", () => rebind(plugin)));
 	plugin.registerEvent(plugin.app.workspace.on("quit", () => flush(0)));
 
+	// 停用 / 卸载插件：把待写位置立即落盘、解绑容器监听，避免残留监听继续记录写盘
+	plugin.register(() => {
+		flush(0);
+		if (boundView && onScroll) boundView.containerEl.removeEventListener("scroll", onScroll, true);
+		boundView = null;
+		onScroll = null;
+	});
+
 	rebind(plugin);
+}
+
+/** 清空阅读位置记录（「恢复默认设置」调用）：同步换掉设置里的引用，防止旧记录被 flush 写回 */
+export function clearReadPositions(): void {
+	map = {};
+	if (pluginRef) pluginRef.settings.readPositions = map;
 }
 
 // ---------------- 记录 ----------------

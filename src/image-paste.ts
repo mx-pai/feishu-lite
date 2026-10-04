@@ -1,4 +1,4 @@
-import { Editor, MarkdownFileInfo, MarkdownView, Notice, editorInfoField } from "obsidian";
+import { Editor, MarkdownFileInfo, MarkdownView, Notice, TFile, editorInfoField } from "obsidian";
 import { Prec } from "@codemirror/state";
 import { EditorView } from "@codemirror/view";
 import type FeishuLitePlugin from "./main";
@@ -146,6 +146,17 @@ function extFromFile(f: File): string {
 	return t === "jpeg" ? "jpg" : t;
 }
 
+/** 编辑器此刻所属的笔记文件（在 await 之后复查，判断笔记是否已被切走）；读不到返回 null */
+function currentEditorFile(editor: Editor): TFile | null {
+	try {
+		const cm = (editor as unknown as { cm?: EditorView }).cm;
+		const info = cm?.state.field(editorInfoField, false);
+		return info?.file ?? null;
+	} catch {
+		return null;
+	}
+}
+
 /** 核心：保存文件并插入内容（两条通道共用），失败自动兜底提示 */
 async function insertImages(
 	plugin: FeishuLitePlugin,
@@ -178,6 +189,13 @@ async function insertImages(
 			const tfile = await app.vault.createBinary(path, buf);
 			embeds.push("!" + app.fileManager.generateMarkdownLink(tfile, sourcePath));
 			i++;
+		}
+
+		// 多图 + 压缩时保存可能持续数秒；期间若切走了笔记，绝不能用旧坐标往新笔记里插链接
+		const fileNow = currentEditorFile(editor);
+		if (file && fileNow && fileNow.path !== file.path) {
+			new Notice(`Feishu Lite：图片已保存到附件；已切换到其它笔记，链接未自动插入（原笔记：${file.basename}）`);
+			return;
 		}
 
 		const cur = editor.getCursor();

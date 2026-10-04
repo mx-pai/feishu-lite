@@ -1,10 +1,11 @@
-import { EditorView } from "@codemirror/view";
+import { EditorView, ViewPlugin } from "@codemirror/view";
 import type FeishuLitePlugin from "./main";
 
 /**
  * 图片查看器（灯箱）：
  * - 阅读视图 / 编辑视图（Live Preview）点击图片 → 全屏浮层：滚轮缩放（以光标为锚点）、拖拽平移、Esc / 点击空白关闭
- * - 编辑视图走 CM6 mousedown 通道接管：光标不跳到图片行、图片保持渲染；图片行已展开源码时点到的是文本、不进灯箱
+ * - 编辑视图用原生捕获监听接管 mousedown（CM6 会把渲染态 callout 等 widget 内的事件判为「不属于编辑器」，
+ *   扩展事件处理器收不到；原生监听不受此限制）：光标不跳、图片不翻源码，其余事件原样放行
  * - 图片外层有链接时放行链接；源码行缩略图（.fl-src-thumb）点击仍回源码；画布不受影响
  * - 设置项「图片查看器」可整体关闭；oz-image-plugin 只做编辑器内渲染、无查看器，二者不冲突
  * - 设置项「图片查看器」可整体关闭
@@ -36,7 +37,8 @@ function openLightbox(src: string, alt: string): void {
 	function fitToView(): void {
 		const vw = overlay.clientWidth;
 		const vh = overlay.clientHeight;
-		let fit = Math.min(1, (vw * 0.92) / baseW, (vh * 0.92) / baseH);
+		// 默认铺到视口 70%（留出边距，避免一开就占满整屏）；小图不放大：min(1, ...)
+		let fit = Math.min(1, (vw * 0.7) / baseW, (vh * 0.7) / baseH);
 		if (!isFinite(fit) || fit <= 0) fit = 1;
 		scale = fit;
 		apply();
@@ -144,19 +146,35 @@ export function registerLightbox(plugin: FeishuLitePlugin): void {
 
 /** 编辑视图（Live Preview）通道：点击渲染出的图片 → 灯箱（源码行缩略图除外，点击它仍回源码编辑） */
 export function lightboxEditorExtension(plugin: FeishuLitePlugin) {
-	return EditorView.domEventHandlers({
-		mousedown: (e, view) => {
-			if (e.button !== 0) return false;
-			if (!plugin.settings.imageLightbox) return false;
-			const t = e.target;
-			if (!(t instanceof HTMLElement)) return false;
-			const img = t.closest("img");
-			if (!img || !view.contentDOM.contains(img)) return false;
-			if (img.closest(".fl-src-thumb")) return false;
-			if (img.closest("a")) return false;
-			e.preventDefault();
-			openLightbox(img.src, img.alt);
-			return true; // 已接管：光标不移动、该行不翻出源码
-		},
-	});
+	return ViewPlugin.fromClass(
+		class {
+			private view: EditorView;
+			private onMouseDown: (e: MouseEvent) => void;
+
+			constructor(view: EditorView) {
+				this.view = view;
+				this.onMouseDown = (e: MouseEvent) => {
+					if (e.button !== 0) return;
+					if (e.defaultPrevented) return; // 已有其它处理（如灯箱自身）
+					if (!plugin.settings.imageLightbox) return;
+					const t = e.target;
+					if (!(t instanceof HTMLElement)) return;
+					const img = t.closest("img");
+					if (!img) return; // 只拦图片点击，其余事件原样放行
+					if (img.closest(".fl-src-thumb")) return;
+					if (img.closest("a")) return;
+					e.preventDefault();
+					e.stopPropagation(); // CM6 收不到这次 mousedown：光标不动、图片不翻源码
+					openLightbox(img.src, img.alt);
+				};
+				// 原生捕获监听：渲染态 callout 等 widget 内的事件会被 CM6 判为「不属于编辑器」、
+				// 扩展事件处理器收不到；原生监听绕开该判定，分栏里的图片也能点开
+				view.contentDOM.addEventListener("mousedown", this.onMouseDown, true);
+			}
+
+			destroy(): void {
+				this.view.contentDOM.removeEventListener("mousedown", this.onMouseDown, true);
+			}
+		}
+	);
 }

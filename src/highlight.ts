@@ -69,15 +69,14 @@ export function highlightPostProcessor(el: HTMLElement, _ctx: MarkdownPostProces
 	for (const node of targets) {
 		const text = node.nodeValue ?? "";
 		const re = new RegExp(HL_PATTERN, "g");
-		const frag = document.createDocumentFragment();
+		const frag = createFragment();
 		let last = 0;
 		let changed = false;
 		let m: RegExpExecArray | null;
 		while ((m = re.exec(text))) {
 			if (m.index > last) frag.appendChild(document.createTextNode(text.slice(last, m.index)));
 			if (COLOR_SET.has(m[1])) {
-				const mark = document.createElement("mark");
-				mark.className = `fl-hl-${m[1]}`;
+				const mark = createEl("mark", { cls: `fl-hl-${m[1]}` });
 				mark.textContent = m[2];
 				frag.appendChild(mark);
 				changed = true;

@@ -59,7 +59,7 @@ function openLightbox(src: string, alt: string): void {
 	}
 
 	function onKey(e: KeyboardEvent): void {
-		if (e.isComposing || e.keyCode === 229) return;
+		if (e.isComposing || e.key === "Process") return;
 		if (e.key === "Escape") {
 			e.preventDefault();
 			e.stopPropagation();
@@ -127,7 +127,7 @@ export function registerLightbox(plugin: FeishuLitePlugin): void {
 			if (!plugin.settings.imageLightbox) return;
 			const t = e.target;
 			if (!(t instanceof HTMLElement)) return;
-			const img = t.closest("img") as HTMLImageElement | null;
+			const img = t.closest("img");
 			if (!img) return;
 			if (img.closest(".fl-lightbox")) return;
 			if (img.closest("a")) return; // 图片外还有链接 → 放行链接

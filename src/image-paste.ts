@@ -20,11 +20,17 @@ import { compressImage } from "./image-compress";
 export function registerImagePaste(plugin: FeishuLitePlugin): void {
 	plugin.registerEvent(
 		plugin.app.workspace.on("editor-paste", (evt, editor, info) => {
+			if (evt.defaultPrevented) return;
+			if (!claimable(plugin, evt)) return;
+			evt.preventDefault();
 			void handleFiles(plugin, evt, editor, info);
 		})
 	);
 	plugin.registerEvent(
 		plugin.app.workspace.on("editor-drop", (evt, editor, info) => {
+			if (evt.defaultPrevented) return;
+			if (!claimable(plugin, evt)) return;
+			evt.preventDefault();
 			void handleFiles(plugin, evt, editor, info);
 		})
 	);
@@ -77,7 +83,12 @@ function tryClaim(
 	}
 }
 
-/** workspace 兜底通道 */
+/** 兜底通道的「要不要接管」判定（与 CM6 通道同口径） */
+function claimable(plugin: FeishuLitePlugin, evt: ClipboardEvent | DragEvent): boolean {
+	return plugin.settings.renameOnPaste && extractImageFiles(evt).length > 0;
+}
+
+/** workspace 兜底通道（预检 + preventDefault 已在注册处完成，这里只负责后续插入） */
 async function handleFiles(
 	plugin: FeishuLitePlugin,
 	evt: ClipboardEvent | DragEvent,
@@ -85,11 +96,8 @@ async function handleFiles(
 	info: MarkdownView | MarkdownFileInfo
 ): Promise<void> {
 	try {
-		if (!plugin.settings.renameOnPaste) return;
-		if (evt.defaultPrevented) return; // 已被（本插件 CM6 通道或其它插件）处理，不抢
 		const files = extractImageFiles(evt);
 		if (!files.length) return;
-		evt.preventDefault();
 
 		// 拖入时以落点为准（经 CM6 EditorView 解析坐标，失败则退回当前光标）
 		const drag = evt as DragEvent;
@@ -146,7 +154,7 @@ async function insertImages(
 	info: MarkdownView | MarkdownFileInfo
 ): Promise<void> {
 	try {
-		const file = info instanceof MarkdownView ? info.file : (info as MarkdownFileInfo).file;
+		const file = info.file;
 		const sourcePath = file?.path ?? "";
 		const noteName = file?.basename ?? "image";
 		const app = plugin.app;

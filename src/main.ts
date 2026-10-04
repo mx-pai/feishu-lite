@@ -3,7 +3,7 @@ import { DEFAULT_SETTINGS, FlSettingTab, applyCssVars } from "./settings";
 import type { FlSettings } from "./settings";
 import { SlashSuggest } from "./slash";
 import { registerImagePaste } from "./image-paste";
-import { insertGridSkeleton, openImagePicker, unwrapGrid, wrapSelectionIntoGrid } from "./image-grid";
+import { insertGridSkeleton, openImagePicker, syncGridEmptyState, unwrapGrid, wrapSelectionIntoGrid } from "./image-grid";
 import { highlightPostProcessor, highlightViewPlugin, pickColorAndHighlight } from "./highlight";
 import { colPostProcessor } from "./column";
 import { codePrettyPostProcessor } from "./code-pretty";
@@ -58,6 +58,9 @@ export default class FeishuLitePlugin extends Plugin {
 
 		// 编辑视图：分栏源码态下用缩略图代替文件名文字
 		this.registerEditorExtension(gridSourcePlugin(this));
+
+		// 图片分栏：渲染后给「空分栏」内容打标记（styles.css 据此显示占位提示）
+		this.registerMarkdownPostProcessor((el) => syncGridEmptyState(el));
 
 		// 表格增强：Tab/Shift+Tab/Enter 跳格 + 自动对齐（Advanced Tables 启用时自动让位）
 		this.registerEditorExtension(tableEnhanceExtension(this));
@@ -132,7 +135,8 @@ export default class FeishuLitePlugin extends Plugin {
 	}
 
 	async loadSettings(): Promise<void> {
-		this.settings = Object.assign({}, DEFAULT_SETTINGS, await this.loadData());
+		const data = (await this.loadData()) as Partial<FlSettings> | null;
+		this.settings = { ...DEFAULT_SETTINGS, ...data };
 	}
 
 	async saveSettings(): Promise<void> {

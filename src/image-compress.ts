@@ -33,7 +33,7 @@ export async function compressImage(file: File, s: FlSettings): Promise<Compress
 			h = Math.max(1, Math.round(h * k));
 		}
 
-		const canvas = document.createElement("canvas");
+		const canvas = createEl("canvas");
 		canvas.width = w;
 		canvas.height = h;
 		const ctx = canvas.getContext("2d");

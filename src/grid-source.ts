@@ -2,6 +2,7 @@ import { Decoration, DecorationSet, EditorView, ViewPlugin, WidgetType } from "@
 import type { ViewUpdate } from "@codemirror/view";
 import { editorInfoField } from "obsidian";
 import type FeishuLitePlugin from "./main";
+import { syncGridEmptyState } from "./image-grid";
 
 /**
  * 编辑视图美化：分栏（img-N callout）进入源码编辑态时，
@@ -12,8 +13,8 @@ import type FeishuLitePlugin from "./main";
  * - 块被渲染（未激活）时其行不在 visibleRanges 内，自然不受影响
  */
 
-const IMG_LINE_RE = /^\s*>\s*!\[\[([^\[\]|]+)(?:\|[^\[\]]*)?\]\]\s*$/;
-const CALLOUT_HEAD_RE = /^\s*>\s*\[!img-[2-4]\][+\-]?\s*$/;
+const IMG_LINE_RE = /^\s*>\s*!\[\[([^[\]|]+)(?:\|[^[\]]*)?\]\]\s*$/;
+const CALLOUT_HEAD_RE = /^\s*>\s*\[!img-[2-4]\][+-]?\s*$/;
 const MAX_WALK = 80;
 
 class GridThumbWidget extends WidgetType {
@@ -26,9 +27,8 @@ class GridThumbWidget extends WidgetType {
 	}
 
 	toDOM(): HTMLElement {
-		const span = document.createElement("span");
-		span.className = "fl-src-thumb";
-		const img = document.createElement("img");
+		const span = createSpan({ cls: "fl-src-thumb" });
+		const img = span.createEl("img");
 		img.src = this.src;
 		img.alt = ""; // 即使加载失败也不显示文件名文字
 		img.title = this.name; // 悬停可辨认是哪张图
@@ -41,6 +41,17 @@ class GridThumbWidget extends WidgetType {
 	}
 }
 
+let emptySyncTimer: number | null = null;
+
+/** 嵌入图片渲染有延迟：稍作防抖再同步「空分栏」标记 */
+function scheduleEmptySync(dom: HTMLElement): void {
+	if (emptySyncTimer !== null) window.clearTimeout(emptySyncTimer);
+	emptySyncTimer = window.setTimeout(() => {
+		emptySyncTimer = null;
+		syncGridEmptyState(dom);
+	}, 120);
+}
+
 export function gridSourcePlugin(plugin: FeishuLitePlugin) {
 	return ViewPlugin.fromClass(
 		class {
@@ -48,6 +59,7 @@ export function gridSourcePlugin(plugin: FeishuLitePlugin) {
 
 			constructor(view: EditorView) {
 				this.decorations = buildGridSourceDecorations(view, plugin);
+				syncGridEmptyState(view.dom);
 			}
 
 			update(update: ViewUpdate): void {
@@ -56,6 +68,7 @@ export function gridSourcePlugin(plugin: FeishuLitePlugin) {
 				if (update.docChanged || update.viewportChanged || update.selectionSet) {
 					this.decorations = buildGridSourceDecorations(update.view, plugin);
 				}
+				if (update.docChanged || update.viewportChanged) scheduleEmptySync(update.view.dom);
 			}
 		},
 		{ decorations: (v) => v.decorations }

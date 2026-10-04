@@ -208,7 +208,7 @@ function refreshHeadings(plugin: FeishuLitePlugin): void {
 		if (!h) continue;
 		const item = st.listEl.createDiv({ cls: "fl-toc-item" });
 		item.dataset.idx = String(i);
-		item.style.paddingLeft = `${8 + (h.level - st.minLevel) * 12}px`;
+		item.style.setProperty("--fl-item-indent", `${(h.level - st.minLevel) * 12}px`);
 		const text = cleanHeading(h.heading) || "（无标题）";
 		item.setText(text);
 		item.setAttribute("title", text);

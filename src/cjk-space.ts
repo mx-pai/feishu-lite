@@ -111,6 +111,7 @@ function cursorInFence(editor: Editor): boolean {
 export function registerCjkPaste(plugin: FeishuLitePlugin): void {
 	plugin.registerEvent(
 		plugin.app.workspace.on("editor-paste", (evt, editor) => {
+			if (evt.defaultPrevented) return; // 已被（本插件 CM6 通道或其它插件）处理，不抢
 			if (!plugin.settings.cjkPaste) return;
 			const cd = evt.clipboardData;
 			if (!cd || (cd.files && cd.files.length > 0)) return; // 图片/文件粘贴交给图片模块

@@ -13,29 +13,27 @@
 	display: none;
 }
 .callout[data-callout^="img-"] .callout-content {
-	display: grid;
-	gap: var(--fl-grid-gap, 8px);
 	padding: 0;
 	background: transparent;
 	border: none;
 	overflow: visible;
 }
-.callout[data-callout="img-2"] .callout-content {
+/* Obsidian 会把连续的引用行合并进同一个 <p>（行与行之间只有 <br>）：
+   让 <p> 自己成为网格容器，图片各占一格；<br> 隐藏避免竖排 */
+.callout[data-callout^="img-"] .callout-content > p {
+	display: grid;
+	gap: var(--fl-grid-gap, 8px);
+	margin: 0;
+	min-width: 0;
+}
+.callout[data-callout="img-2"] .callout-content > p {
 	grid-template-columns: repeat(2, minmax(0, 1fr));
 }
-.callout[data-callout="img-3"] .callout-content {
+.callout[data-callout="img-3"] .callout-content > p {
 	grid-template-columns: repeat(3, minmax(0, 1fr));
 }
-.callout[data-callout="img-4"] .callout-content {
+.callout[data-callout="img-4"] .callout-content > p {
 	grid-template-columns: repeat(4, minmax(0, 1fr));
-}
-/* Obsidian 会把连续的引用行合并进同一个 <p>（行与行之间只有 <br>）：
-   用 display:contents 把 <p> 从布局中"拆掉"，让每张图各自成为网格项，
-   否则多张图会挤在同一个格子内、沿 <br> 竖排 */
-.callout[data-callout^="img-"] .callout-content > p {
-	display: contents;
-	margin: 0 !important;
-	min-width: 0;
 }
 .callout[data-callout^="img-"] .callout-content br {
 	display: none;
@@ -55,31 +53,31 @@
 	min-width: 0;
 }
 
-/* 空分栏占位提示：还没贴图时显示虚线框 + 提示，贴入图片后自动消失 */
-.callout[data-callout^="img-"] .callout-content:not(:has(img)) {
+/* 空分栏占位提示：渲染后 JS 给无图的 .callout-content 打上 .fl-grid-empty（贴入图片后自动移除） */
+.callout[data-callout^="img-"] .callout-content.fl-grid-empty {
+	display: flex;
+	align-items: center;
 	border: 1px dashed var(--background-modifier-border);
 	border-radius: var(--fl-grid-radius, 8px);
 	min-height: 64px;
 	padding: 12px;
 }
-.callout[data-callout^="img-"] .callout-content:not(:has(img))::before {
+.callout[data-callout^="img-"] .callout-content.fl-grid-empty::before {
 	content: "空分栏 · 把图片粘贴或拖进来，自动排栏";
 	color: var(--text-faint);
 	font-size: var(--font-small);
-	grid-column: 1 / -1;
-	align-self: center;
 }
-.callout[data-callout^="img-"] .callout-content:not(:has(img)) > p:empty {
+.callout[data-callout^="img-"] .callout-content.fl-grid-empty > p:empty {
 	display: none;
 }
 
 /* 设置里关闭「空分栏占位提示」后：空分栏不再显示虚线框和提示文字 */
-body.fl-hide-empty-hint .callout[data-callout^="img-"] .callout-content:not(:has(img)) {
+body.fl-hide-empty-hint .callout[data-callout^="img-"] .callout-content.fl-grid-empty {
 	border: none;
 	min-height: 0;
 	padding: 0;
 }
-body.fl-hide-empty-hint .callout[data-callout^="img-"] .callout-content:not(:has(img))::before {
+body.fl-hide-empty-hint .callout[data-callout^="img-"] .callout-content.fl-grid-empty::before {
 	content: none;
 }
 
@@ -128,14 +126,14 @@ body.theme-dark {
 .fl-hl-purple { background-color: var(--fl-hl-purple); }
 .fl-hl-gray { background-color: var(--fl-hl-gray); }
 
-/* Live Preview：覆盖主题默认的 .cm-highlight 背景色 */
-span.cm-highlight.fl-hl-red { background-color: var(--fl-hl-red) !important; }
-span.cm-highlight.fl-hl-orange { background-color: var(--fl-hl-orange) !important; }
-span.cm-highlight.fl-hl-yellow { background-color: var(--fl-hl-yellow) !important; }
-span.cm-highlight.fl-hl-green { background-color: var(--fl-hl-green) !important; }
-span.cm-highlight.fl-hl-blue { background-color: var(--fl-hl-blue) !important; }
-span.cm-highlight.fl-hl-purple { background-color: var(--fl-hl-purple) !important; }
-span.cm-highlight.fl-hl-gray { background-color: var(--fl-hl-gray) !important; }
+/* Live Preview：覆盖主题默认的 .cm-highlight 背景色（用更高选择器权重覆盖，不再用强制声明） */
+.markdown-source-view.cm-s-obsidian span.cm-highlight.fl-hl-red { background-color: var(--fl-hl-red); }
+.markdown-source-view.cm-s-obsidian span.cm-highlight.fl-hl-orange { background-color: var(--fl-hl-orange); }
+.markdown-source-view.cm-s-obsidian span.cm-highlight.fl-hl-yellow { background-color: var(--fl-hl-yellow); }
+.markdown-source-view.cm-s-obsidian span.cm-highlight.fl-hl-green { background-color: var(--fl-hl-green); }
+.markdown-source-view.cm-s-obsidian span.cm-highlight.fl-hl-blue { background-color: var(--fl-hl-blue); }
+.markdown-source-view.cm-s-obsidian span.cm-highlight.fl-hl-purple { background-color: var(--fl-hl-purple); }
+.markdown-source-view.cm-s-obsidian span.cm-highlight.fl-hl-gray { background-color: var(--fl-hl-gray); }
 
 /* Live Preview 隐藏 =={red} 与结尾 == 语法标记（沿用 Obsidian 自身的零字号技巧） */
 .fl-hl-syntax {
@@ -566,13 +564,18 @@ body.fl-table-pretty .markdown-rendered table tbody tr:hover {
 /* 展开态（is-open 由 toc.ts 悬停 150ms 后添加）：磨砂半透明卡片 */
 .fl-toc.is-open {
 	width: 216px;
-	background: var(--background-secondary); /* 老版本兜底（不支持 color-mix 时用实色） */
-	background: color-mix(in srgb, var(--background-secondary) 92%, transparent);
+	background: var(--background-secondary); /* 兜底实色；color-mix 可用时由下方 @supports 覆盖 */
 	backdrop-filter: blur(12px) saturate(1.25);
 	-webkit-backdrop-filter: blur(12px) saturate(1.25);
 	border-color: color-mix(in srgb, var(--background-modifier-border) 75%, transparent);
 	border-radius: 10px;
 	box-shadow: 0 4px 16px rgba(0, 0, 0, 0.1);
+}
+/* color-mix 可用（新版本）时：用半透明背景 */
+@supports (background: color-mix(in srgb, red 50%, transparent)) {
+	.fl-toc.is-open {
+		background: color-mix(in srgb, var(--background-secondary) 92%, transparent);
+	}
 }
 .fl-toc-head {
 	display: flex;
@@ -607,7 +610,7 @@ body.fl-table-pretty .markdown-rendered table tbody tr:hover {
 	padding: 6px;
 }
 .fl-toc-item {
-	padding: 3px 8px;
+	padding: 3px 8px 3px calc(8px + var(--fl-item-indent, 0px));
 	border-radius: 5px;
 	color: var(--text-muted);
 	cursor: pointer;
@@ -642,7 +645,7 @@ body.fl-table-pretty .markdown-rendered table tbody tr:hover {
 	width: 8px;
 	height: 3px;
 	margin: 5px auto;
-	padding: 0 !important; /* 压掉按层级设置的内联左缩进 */
+	padding: 0; /* 收起态横杠：压掉展开态的缩进内边距 */
 	font-size: 0;
 	border-radius: 2px;
 	background: var(--text-faint);

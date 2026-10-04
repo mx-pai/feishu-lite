@@ -15,7 +15,7 @@ export function codePrettyPostProcessor(
 	if (!plugin.settings.codePretty) return;
 
 	el.querySelectorAll<HTMLElement>("pre > code").forEach((codeEl) => {
-		const pre = codeEl.parentElement as HTMLElement | null;
+		const pre = codeEl.parentElement;
 		if (!pre || pre.closest(".fl-code-wrap")) return; // 幂等保护
 
 		const wrap = createDiv({ cls: "fl-code-wrap" });

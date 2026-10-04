@@ -107,3 +107,10 @@ export function openImagePicker(plugin: FeishuLitePlugin, editor: Editor, source
 		sort: plugin.settings.pickerSort,
 	}).open();
 }
+
+/** 给无图的 img 分栏内容打上 .fl-grid-empty（styles.css 据此显示「空分栏」占位提示） */
+export function syncGridEmptyState(root: HTMLElement): void {
+	root.querySelectorAll<HTMLElement>('.callout[data-callout^="img-"] .callout-content').forEach((content) => {
+		content.classList.toggle("fl-grid-empty", !content.querySelector("img"));
+	});
+}

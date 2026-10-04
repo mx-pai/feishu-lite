@@ -154,16 +154,14 @@ export function selectToolbarExtension(plugin: FeishuLitePlugin) {
 			private ensureDom(): HTMLElement {
 				if (this.dom) return this.dom;
 				const doc = this.view.dom.ownerDocument; // 兼容弹出窗口（独立 document）
-				const dom = doc.createElement("div");
-				dom.className = "fl-selbar";
+				const dom = doc.createDiv({ cls: "fl-selbar" });
 				// 保住编辑器焦点与选区：按在工具条上不触发编辑器失焦
 				dom.addEventListener("mousedown", (e) => e.preventDefault());
 				for (const c of HL_COLORS) {
 					const isDefault = c.value === "yellow";
 					const open = isDefault ? "==" : `=={${c.value}}`;
-					const dot = doc.createElement("span");
 					// 复用高亮配色类：色点背景即该色，跟随用户自定义颜色
-					dot.className = `fl-selbar-dot fl-hl-${c.value}`;
+					const dot = doc.createSpan({ cls: `fl-selbar-dot fl-hl-${c.value}` });
 					dot.title = isDefault ? "黄色高亮 ==文字==（再次点击取消）" : `${c.label}高亮（再次点击取消）`;
 					dot.addEventListener("click", () => {
 						toggleWrap(this.view, open, "==");
@@ -171,21 +169,16 @@ export function selectToolbarExtension(plugin: FeishuLitePlugin) {
 					this.buttons.push({ open, el: dot });
 					dom.appendChild(dot);
 				}
-				const sep = doc.createElement("span");
-				sep.className = "fl-selbar-sep";
+				const sep = doc.createSpan({ cls: "fl-selbar-sep" });
 				dom.appendChild(sep);
-				const code = doc.createElement("span");
-				code.className = "fl-selbar-code";
-				code.textContent = "</>";
+				const code = doc.createSpan({ cls: "fl-selbar-code", text: "</>" });
 				code.title = "行内代码 `文字`（再次点击取消）";
 				code.addEventListener("click", () => {
 					toggleWrap(this.view, "`", "`");
 				});
 				this.buttons.push({ open: "`", el: code });
 				dom.appendChild(code);
-				const strike = doc.createElement("span");
-				strike.className = "fl-selbar-strike";
-				strike.textContent = "S";
+				const strike = doc.createSpan({ cls: "fl-selbar-strike", text: "S" });
 				strike.title = "删除线 ~~文字~~（再次点击取消）";
 				strike.addEventListener("click", () => {
 					toggleWrap(this.view, "~~", "~~");

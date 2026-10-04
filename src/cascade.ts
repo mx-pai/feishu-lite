@@ -99,13 +99,13 @@ export function openCascade<T>(
 
 	function pick(i: number): void {
 		if (closed) return;
-		const value = options[i]?.value as T;
+		const value = options[i]?.value;
 		close();
 		runGuarded(() => onPick(value));
 	}
 
 	function onKey(e: KeyboardEvent): void {
-		if (e.isComposing || e.keyCode === 229) return; // IME 组合中不拦截
+		if (e.isComposing || e.key === "Process") return; // IME 组合中不拦截
 		if (e.key === "Shift" || e.key === "Control" || e.key === "Alt" || e.key === "Meta") return;
 		if (e.key === "ArrowDown") {
 			e.preventDefault();
@@ -131,7 +131,7 @@ export function openCascade<T>(
 	function onMouseDown(e: MouseEvent): void {
 		if (e.target instanceof Node && root.contains(e.target)) {
 			// 点在选项上：阻止默认聚焦，保持编辑器焦点不丢（滚动条不受影响）
-			if (e.target instanceof HTMLElement && e.target.closest(".fl-cascade-item")) e.preventDefault();
+			if (e.target.instanceOf(HTMLElement) && e.target.closest(".fl-cascade-item")) e.preventDefault();
 			return;
 		}
 		close();
@@ -312,7 +312,7 @@ export function openSlashCascade(
 	}
 
 	function onKey(e: KeyboardEvent): void {
-		if (e.isComposing || e.keyCode === 229) return; // IME 组合中不拦截
+		if (e.isComposing || e.key === "Process") return; // IME 组合中不拦截
 		if (e.key === "Shift" || e.key === "Control" || e.key === "Alt" || e.key === "Meta") return;
 		if (e.key === "ArrowDown") {
 			e.preventDefault();
@@ -365,7 +365,7 @@ export function openSlashCascade(
 
 	function onMouseDown(e: MouseEvent): void {
 		if (e.target instanceof Node && root.contains(e.target)) {
-			if (e.target instanceof HTMLElement && e.target.closest(".fl-cascade-item")) e.preventDefault();
+			if (e.target.instanceOf(HTMLElement) && e.target.closest(".fl-cascade-item")) e.preventDefault();
 			return;
 		}
 		close();

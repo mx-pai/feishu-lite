@@ -1,4 +1,4 @@
-import { App, Notice, PluginSettingTab, Setting } from "obsidian";
+import { App, Notice, PluginSettingTab, requireApiVersion, Setting } from "obsidian";
 import type FeishuLitePlugin from "./main";
 import { buildImageName } from "./naming";
 import type { DateStyle } from "./naming";
@@ -140,7 +140,7 @@ function attachmentFolder(app: App): string {
 		const raw = (app.vault as unknown as { getConfig?: (key: string) => unknown }).getConfig?.(
 			"attachmentFolderPath"
 		);
-		const v = String(raw ?? "")
+		const v = (typeof raw === "string" ? raw : "")
 			.replace(/^\.\//, "")
 			.replace(/^\/+|\/+$/g, "");
 		return v === "." ? "" : v;
@@ -155,6 +155,13 @@ export class FlSettingTab extends PluginSettingTab {
 	constructor(app: App, plugin: FeishuLitePlugin) {
 		super(app, plugin);
 		this.plugin = plugin;
+	}
+
+	/** 刷新设置页：1.13+ 走 update()；更早版本回落到 display()（minAppVersion < 1.13 时的合法路径） */
+	private refresh(): void {
+		const tab = this as unknown as { update?: () => void; display?: () => void };
+		if (typeof tab.update === "function") tab.update();
+		else tab.display?.();
 	}
 
 	display(): void {
@@ -326,7 +333,7 @@ export class FlSettingTab extends PluginSettingTab {
 			chip.onclick = async () => {
 				this.plugin.settings.gridRowHeight = value;
 				await this.plugin.saveSettings();
-				this.display();
+				this.refresh();
 			};
 		}
 		rowItem.addText((t) =>
@@ -455,7 +462,7 @@ export class FlSettingTab extends PluginSettingTab {
 			b.setButtonText("全部恢复默认").onClick(async () => {
 				this.plugin.settings.customHighlightColors = {};
 				await this.plugin.saveSettings();
-				this.display();
+				this.refresh();
 				new Notice("Feishu Lite：已恢复默认高亮配色");
 			})
 		);
@@ -647,7 +654,8 @@ export class FlSettingTab extends PluginSettingTab {
 		item.addButton((b) => {
 			let armed = false;
 			let timer: number | null = null;
-			b.setButtonText("恢复默认").setWarning().onClick(async () => {
+			if (requireApiVersion("1.13.0")) b.setDestructive();
+			b.setButtonText("恢复默认").onClick(async () => {
 				if (!armed) {
 					armed = true;
 					b.setButtonText("再点一次确认");
@@ -660,7 +668,7 @@ export class FlSettingTab extends PluginSettingTab {
 				if (timer !== null) window.clearTimeout(timer);
 				Object.assign(this.plugin.settings, JSON.parse(JSON.stringify(DEFAULT_SETTINGS)) as FlSettings);
 				await this.plugin.saveSettings();
-				this.display();
+				this.refresh();
 				new Notice("Feishu Lite：已恢复默认设置");
 			});
 		});

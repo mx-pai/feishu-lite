@@ -72,7 +72,7 @@ export function openTablePicker(editor: Editor, onPick?: (rows: number, cols: nu
 	}
 
 	function onKey(e: KeyboardEvent): void {
-		if (e.isComposing || e.keyCode === 229) return;
+		if (e.isComposing || e.key === "Process") return;
 		if (e.key === "Shift" || e.key === "Control" || e.key === "Alt" || e.key === "Meta") return;
 		if (e.key === "ArrowDown") {
 			e.preventDefault();
@@ -110,7 +110,7 @@ export function openTablePicker(editor: Editor, onPick?: (rows: number, cols: nu
 	function onMouseDown(e: MouseEvent): void {
 		if (e.target instanceof Node && root.contains(e.target)) {
 			// 点在格子上：阻止默认聚焦，保持编辑器焦点不丢
-			if (e.target instanceof HTMLElement && e.target.closest(".fl-table-picker-cell")) e.preventDefault();
+			if (e.target.instanceOf(HTMLElement) && e.target.closest(".fl-table-picker-cell")) e.preventDefault();
 			return;
 		}
 		close();

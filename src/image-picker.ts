@@ -161,7 +161,7 @@ export class ImagePickerModal extends Modal {
 			const raw = (this.app.vault as unknown as { getConfig?: (key: string) => unknown }).getConfig?.(
 				"attachmentFolderPath"
 			);
-			const v = String(raw ?? "")
+			const v = (typeof raw === "string" ? raw : "")
 				.replace(/^\.\//, "")
 				.replace(/^\/+|\/+$/g, "");
 			return v === "." ? "" : v;

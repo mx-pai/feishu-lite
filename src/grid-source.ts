@@ -2,7 +2,7 @@ import { Decoration, DecorationSet, EditorView, ViewPlugin, WidgetType } from "@
 import type { ViewUpdate } from "@codemirror/view";
 import { editorInfoField } from "obsidian";
 import type FeishuLitePlugin from "./main";
-import { syncGridEmptyState } from "./image-grid";
+import { observeImageGrids } from "./image-grid";
 
 /**
  * 编辑视图美化：分栏（img-N callout）进入源码编辑态时，
@@ -41,25 +41,15 @@ class GridThumbWidget extends WidgetType {
 	}
 }
 
-let emptySyncTimer: number | null = null;
-
-/** 嵌入图片渲染有延迟：稍作防抖再同步「空分栏」标记 */
-function scheduleEmptySync(dom: HTMLElement): void {
-	if (emptySyncTimer !== null) window.clearTimeout(emptySyncTimer);
-	emptySyncTimer = window.setTimeout(() => {
-		emptySyncTimer = null;
-		syncGridEmptyState(dom);
-	}, 120);
-}
-
 export function gridSourcePlugin(plugin: FeishuLitePlugin) {
 	return ViewPlugin.fromClass(
 		class {
 			decorations: DecorationSet;
+			private stopObserving: () => void;
 
 			constructor(view: EditorView) {
 				this.decorations = buildGridSourceDecorations(view, plugin);
-				syncGridEmptyState(view.dom);
+				this.stopObserving = observeImageGrids(view.dom);
 			}
 
 			update(update: ViewUpdate): void {
@@ -68,7 +58,10 @@ export function gridSourcePlugin(plugin: FeishuLitePlugin) {
 				if (update.docChanged || update.viewportChanged || update.selectionSet) {
 					this.decorations = buildGridSourceDecorations(update.view, plugin);
 				}
-				if (update.docChanged || update.viewportChanged) scheduleEmptySync(update.view.dom);
+			}
+
+			destroy(): void {
+				this.stopObserving();
 			}
 		},
 		{ decorations: (v) => v.decorations }

@@ -1,8 +1,10 @@
-import { Editor, Notice } from "obsidian";
+import { Editor, MarkdownRenderChild, Notice } from "obsidian";
+import type { MarkdownPostProcessorContext } from "obsidian";
 import type FeishuLitePlugin from "./main";
 import { openCascade } from "./cascade";
 import { parseImageLine, toGridBlock } from "./naming";
 import { ImagePickerModal } from "./image-picker";
+import { isImagePath } from "./util";
 
 const COLS_OPTIONS = [
 	{ label: "2 栏", value: 2, hint: "两列并排" },
@@ -108,9 +110,78 @@ export function openImagePicker(plugin: FeishuLitePlugin, editor: Editor, source
 	}).open();
 }
 
-/** 给无图的 img 分栏内容打上 .fl-grid-empty（styles.css 据此显示「空分栏」占位提示） */
+const GRID_CONTENT = '.callout[data-callout^="img-"] .callout-content';
+
+/** 图片嵌入可能尚未生成 img；先按嵌入节点判定，兼容异步加载 */
+function isImageEmbed(el: Element): boolean {
+	return el.matches("img, .image-embed") ||
+		(el.matches(".internal-embed") && isImagePath(el.getAttribute("src") ?? "")) ||
+		(el.tagName === "A" && !el.textContent?.trim() && !!el.querySelector("img"));
+}
+
+/** 把纯图片段落展平成共享网格，保留原嵌入节点、点击处理和 Markdown 源码 */
 export function syncGridEmptyState(root: HTMLElement): void {
-	root.querySelectorAll<HTMLElement>('.callout[data-callout^="img-"] .callout-content').forEach((content) => {
-		content.classList.toggle("fl-grid-empty", !content.querySelector("img"));
+	const contents = Array.from(root.querySelectorAll<HTMLElement>(GRID_CONTENT));
+	if (root.matches(GRID_CONTENT)) contents.unshift(root);
+	for (const content of contents) {
+		for (const p of Array.from(content.children)) {
+			if (p.tagName !== "P") continue;
+			const nodes = Array.from(p.childNodes);
+			const onlyImages = nodes.every((node) => {
+				if (node.nodeType === 3) return !node.textContent?.trim();
+				if (node.nodeType !== 1) return false;
+				const el = node as Element;
+				return el.tagName === "BR" || isImageEmbed(el);
+			});
+			if (!onlyImages) continue;
+			p.replaceWith(...Array.from(p.children).filter(isImageEmbed));
+		}
+		const hasImage = Array.from(content.querySelectorAll("img, .internal-embed, .image-embed")).some(isImageEmbed);
+		content.classList.toggle("fl-grid-empty", !hasImage);
+	}
+}
+
+/** 只跟踪分栏相关 DOM 变化；每个渲染根独立防抖，卸载时释放 */
+export function observeImageGrids(root: HTMLElement): () => void {
+	const owner = root.ownerDocument.defaultView ?? window;
+	let timer: number | null = null;
+	const observer = new MutationObserver((records) => {
+		const changed = records.some((record) => {
+			const target = record.target.nodeType === 1 ? record.target as Element : record.target.parentElement;
+			return !!target?.closest(GRID_CONTENT) || Array.from(record.addedNodes).some((node) =>
+				node.nodeType === 1 && ((node as Element).matches(GRID_CONTENT) || !!(node as Element).querySelector(GRID_CONTENT))
+			);
+		});
+		if (!changed) return;
+		if (timer !== null) owner.clearTimeout(timer);
+		timer = owner.setTimeout(() => {
+			timer = null;
+			syncGridEmptyState(root);
+		}, 120);
 	});
+	syncGridEmptyState(root);
+	observer.observe(root, { childList: true, subtree: true });
+	return () => {
+		observer.disconnect();
+		if (timer !== null) owner.clearTimeout(timer);
+	};
+}
+
+class ImageGridRenderChild extends MarkdownRenderChild {
+	private stopObserving?: () => void;
+
+	onload(): void {
+		this.stopObserving = observeImageGrids(this.containerEl);
+	}
+
+	onunload(): void {
+		this.stopObserving?.();
+	}
+}
+
+/** 阅读视图：等待图片嵌入完成，并随渲染块生命周期清理监听 */
+export function imageGridPostProcessor(root: HTMLElement, ctx: MarkdownPostProcessorContext): void {
+	if (root.matches(GRID_CONTENT) || root.querySelector(GRID_CONTENT)) {
+		ctx.addChild(new ImageGridRenderChild(root));
+	}
 }

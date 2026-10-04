@@ -13,26 +13,26 @@
 	display: none;
 }
 .callout[data-callout^="img-"] .callout-content {
+	display: grid;
+	gap: var(--fl-grid-gap, 8px);
 	padding: 0;
 	background: transparent;
 	border: none;
 	overflow: visible;
 }
-/* Obsidian 会把连续的引用行合并进同一个 <p>（行与行之间只有 <br>）：
-   让 <p> 自己成为网格容器，图片各占一格；<br> 隐藏避免竖排 */
+/* 图片段落由 image-grid.ts 展平成独立网格项，兼容合并段落 / 多段落 / 直接嵌入 */
 .callout[data-callout^="img-"] .callout-content > p {
-	display: grid;
-	gap: var(--fl-grid-gap, 8px);
+	grid-column: 1 / -1;
 	margin: 0;
 	min-width: 0;
 }
-.callout[data-callout="img-2"] .callout-content > p {
+.callout[data-callout="img-2"] .callout-content {
 	grid-template-columns: repeat(2, minmax(0, 1fr));
 }
-.callout[data-callout="img-3"] .callout-content > p {
+.callout[data-callout="img-3"] .callout-content {
 	grid-template-columns: repeat(3, minmax(0, 1fr));
 }
-.callout[data-callout="img-4"] .callout-content > p {
+.callout[data-callout="img-4"] .callout-content {
 	grid-template-columns: repeat(4, minmax(0, 1fr));
 }
 .callout[data-callout^="img-"] .callout-content br {

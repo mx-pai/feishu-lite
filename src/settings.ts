@@ -1,4 +1,4 @@
-import { App, Notice, PluginSettingTab, requireApiVersion, Setting } from "obsidian";
+import { App, Notice, PluginSettingTab, requireApiVersion, Setting, setIcon } from "obsidian";
 import type FeishuLitePlugin from "./main";
 import { buildImageName } from "./naming";
 import type { DateStyle } from "./naming";
@@ -7,6 +7,9 @@ import { syncToc } from "./toc";
 import { clearReadPositions } from "./read-position";
 
 export interface FlSettings {
+	commentsEnabled: boolean;
+	commentAuthor: string;
+	imageTools: boolean;
 	/** 粘贴/拖入图片时按模板重命名 */
 	renameOnPaste: boolean;
 	/** 命名模板，支持 {note} {date} {time} {i} */
@@ -63,9 +66,14 @@ export interface FlSettings {
 	compressQuality: number;
 	/** 最长边像素，超过等比缩小；0 = 不限 */
 	compressMaxEdge: number;
+	/** 设置页分区折叠状态（section id → 是否收起；缺省展开） */
+	settingsCollapsed: Record<string, boolean>;
 }
 
 export const DEFAULT_SETTINGS: FlSettings = {
+	commentsEnabled: true,
+	commentAuthor: "我",
+	imageTools: true,
 	renameOnPaste: true,
 	namePattern: "{note}-{date}-{i}",
 	datePattern: "compact",
@@ -95,7 +103,11 @@ export const DEFAULT_SETTINGS: FlSettings = {
 	compressFormat: "webp",
 	compressQuality: 80,
 	compressMaxEdge: 1600,
+	settingsCollapsed: {},
 };
+
+/** 设置页分区 id（折叠状态键 + 「全部折叠」用） */
+const SECTION_IDS = ["naming", "grid", "editor", "annotations", "highlight", "read", "tools", "reset"];
 
 /** 高亮 7 色的默认色值（与 styles.css 的 --fl-hl-* 默认配色一致，供颜色选择器回显） */
 const HL_DEFAULT_HEX: Record<string, string> = {
@@ -165,21 +177,64 @@ export class FlSettingTab extends PluginSettingTab {
 		else tab.display?.();
 	}
 
+	/** 分区卡片：图标 + 标题（点标题行可折叠 / 展开）+ 说明；返回卡体（该区设置项都挂在它下面）。
+	 *  折叠状态存设置（settingsCollapsed），跨会话记住 */
+	private section(id: string, icon: string, title: string, desc: string): HTMLElement {
+		const wrap = this.containerEl.createDiv({ cls: "fl-sec" });
+		const head = wrap.createDiv({ cls: "fl-sec-head" });
+		setIcon(head.createDiv({ cls: "fl-sec-icon" }), icon);
+		head.createDiv({ cls: "fl-sec-title", text: title });
+		const chev = head.createDiv({ cls: "fl-sec-chev" });
+		const body = wrap.createDiv({ cls: "fl-sec-body" });
+		body.createDiv({ cls: "fl-sec-desc", text: desc });
+		// 只刷视觉（初值 + 切换共用）；落盘单独走保存，渲染不写设置
+		const setFold = (on: boolean): void => {
+			wrap.toggleClass("is-collapsed", on);
+			setIcon(chev, on ? "chevron-right" : "chevron-down");
+			head.setAttribute("aria-label", on ? `展开「${title}」` : `收起「${title}」`);
+		};
+		setFold(this.plugin.settings.settingsCollapsed[id] === true);
+		head.addEventListener("click", () => {
+			const on = !(this.plugin.settings.settingsCollapsed[id] === true);
+			setFold(on);
+			if (on) this.plugin.settings.settingsCollapsed[id] = true;
+			else delete this.plugin.settings.settingsCollapsed[id];
+			void this.plugin.saveSettings();
+		});
+		return body;
+	}
+
 	display(): void {
 		const { containerEl } = this;
 		containerEl.empty();
 		containerEl.addClass("fl-settings");
 
-		this.renderNaming(containerEl);
-		this.renderGrid(containerEl);
-		this.renderEditor(containerEl);
-		this.renderHighlight(containerEl);
-		this.renderReadability(containerEl);
-		this.renderToc(containerEl);
-		this.renderWriting(containerEl);
-		this.renderPicker(containerEl);
-		this.renderAttach(containerEl);
-		this.renderReset(containerEl);
+		const hero = containerEl.createDiv({ cls: "fl-hero" });
+		const heroText = hero.createDiv({ cls: "fl-hero-text" });
+		heroText.createEl("h2", { text: "Feishu Lite" });
+		heroText.createDiv({ cls: "fl-hero-sub", text: "文档增强 · 批注 / 图片 / 高亮 / 阅读" });
+		// 一键收起 / 展开全部分区（找某一项时不用来回滑动）
+		const allFolded = SECTION_IDS.every((id) => this.plugin.settings.settingsCollapsed[id] === true);
+		const foldAll = hero.createEl("button", {
+			cls: "fl-foldall",
+			text: allFolded ? "全部展开" : "全部折叠",
+		});
+		foldAll.setAttribute("aria-label", allFolded ? "展开所有分区" : "收起所有分区");
+		foldAll.addEventListener("click", () => {
+			if (allFolded) this.plugin.settings.settingsCollapsed = {};
+			else for (const id of SECTION_IDS) this.plugin.settings.settingsCollapsed[id] = true;
+			void this.plugin.saveSettings();
+			this.display();
+		});
+
+		this.renderNaming(this.section("naming", "image", "图片 · 粘贴与命名", "粘贴 / 拖入图片时自动命名、压缩（落点跟随库的附件设置）"));
+		this.renderGrid(this.section("grid", "columns-2", "图片 · 分栏", "斜杠 /tpfl、图库插入与多图粘贴的默认分栏样式"));
+		this.renderEditor(this.section("editor", "pencil", "编辑 · 增强", "划词工具条与表格 / 列表操作增强（原插件仍启用时自动让位）"));
+		this.renderAnnotations(this.section("annotations", "message-square", "编辑 · 批注与图片工具", "选中文字留批注（存于笔记内）；点击图片弹出工具条调整版式"));
+		this.renderHighlight(this.section("highlight", "highlighter", "编辑 · 文本高亮", "=={颜色}文字== 的渲染开关与 7 色配色"));
+		this.renderReading(this.section("read", "book-open", "阅读 · 美化与导航", "阅读视图的呈现与定位：代码 / 表格 / 图片美化、浮动目录、阅读位置"));
+		this.renderTools(this.section("tools", "images", "图片 · 图库与附件清理", "图库弹窗的搜索范围与排序；全库无引用图片的自动清理"));
+		this.renderReset(this.section("reset", "rotate-ccw", "维护", "所有选项回到初始值；不影响已写入笔记的内容"));
 	}
 
 	/** 用当前设置和当前笔记名生成一个命名示例，用于「命名模板」实时预览 */
@@ -189,11 +244,9 @@ export class FlSettingTab extends PluginSettingTab {
 		return buildImageName(s.namePattern || DEFAULT_SETTINGS.namePattern, note, 1, "png", s.datePattern);
 	}
 
-	// ---------------- 图片粘贴与命名 ----------------
+	// ---------------- 图片 · 粘贴与命名 ----------------
 
 	private renderNaming(el: HTMLElement): void {
-		new Setting(el).setName("图片粘贴与命名").setHeading();
-
 		new Setting(el)
 			.setName("粘贴自动命名")
 			.setDesc("粘贴 / 拖入图片时，按命名模板重命名后存入附件目录（跟随库设置）；关闭则完全让位给其它插件")
@@ -288,11 +341,9 @@ export class FlSettingTab extends PluginSettingTab {
 			);
 	}
 
-	// ---------------- 图片分栏 ----------------
+	// ---------------- 图片 · 分栏 ----------------
 
 	private renderGrid(el: HTMLElement): void {
-		new Setting(el).setName("图片分栏").setHeading();
-
 		new Setting(el)
 			.setName("默认分栏数")
 			.setDesc("斜杠菜单 /tpfl、图库多选插入、多图粘贴自动成栏的默认列数")
@@ -399,14 +450,12 @@ export class FlSettingTab extends PluginSettingTab {
 			);
 	}
 
-	// ---------------- 编辑器增强（炼化模块） ----------------
+	// ---------------- 编辑 · 增强（炼化模块） ----------------
 
 	private renderEditor(el: HTMLElement): void {
-		new Setting(el).setName("编辑器增强").setHeading();
-
 		new Setting(el)
 			.setName("划词工具条")
-			.setDesc("编辑视图选中文字时浮现小工具条：7 色一键高亮 / 直接换色、一键行内代码（加粗 / 斜体等已有快捷键的不重复提供；仅单行选区生效）")
+			.setDesc("编辑视图划词显示工具条：单行支持高亮、行内代码和删除线，段落内跨行选区支持批注")
 			.addToggle((t) =>
 				t.setValue(this.plugin.settings.selectToolbar).onChange(async (v) => {
 					this.plugin.settings.selectToolbar = v;
@@ -440,11 +489,16 @@ export class FlSettingTab extends PluginSettingTab {
 			);
 	}
 
-	// ---------------- 彩色高亮 ----------------
+	// ---------------- 编辑 · 批注与图片工具 ----------------
+	private renderAnnotations(el: HTMLElement): void {
+		new Setting(el).setName("笔记批注").setDesc("选中文字后使用工具条留批注，桌面侧栏与手机底部面板查看线程；数据保存在笔记内").addToggle(t => t.setValue(this.plugin.settings.commentsEnabled).onChange(async value => { this.plugin.settings.commentsEnabled = value; await this.plugin.saveSettings(); this.plugin.comments.schedule(); }));
+		new Setting(el).setName("批注署名").addText(t => t.setValue(this.plugin.settings.commentAuthor).onChange(async value => { this.plugin.settings.commentAuthor = value.trim() || "我"; await this.plugin.saveSettings(); }));
+		new Setting(el).setName("图片工具条").setDesc("点击图片调整宽度、图注、分栏和顺序，或打开裁剪与标注；原图保留，编辑生成新图片").addToggle(t => t.setValue(this.plugin.settings.imageTools).onChange(async value => { this.plugin.settings.imageTools = value; await this.plugin.saveSettings(); this.plugin.imageTools.closeToolbar(); }));
+	}
+
+	// ---------------- 编辑 · 文本高亮 ----------------
 
 	private renderHighlight(el: HTMLElement): void {
-		new Setting(el).setName("文本高亮").setHeading();
-
 		new Setting(el)
 			.setName("编辑视图渲染")
 			.setDesc("在 Live Preview 中渲染 =={颜色}文字== 语法（关闭则仅阅读视图渲染；改动重开笔记后完全生效）")
@@ -480,12 +534,11 @@ export class FlSettingTab extends PluginSettingTab {
 		}
 	}
 
-	// ---------------- 阅读视图美化 ----------------
+	// ---------------- 阅读 · 美化与导航（美化 / 浮动目录 / 阅读与写作） ----------------
 
-	private renderReadability(el: HTMLElement): void {
-		new Setting(el).setName("阅读视图美化").setHeading();
+	private renderReading(el: HTMLElement): void {
 		el.createEl("p", {
-			text: "只作用于阅读视图（不影响编辑视图与他人共享的 Markdown 源文件）。",
+			text: "以下美化只作用于阅读视图（不影响编辑视图与他人共享的 Markdown 源文件）。",
 			cls: "setting-item-description fl-preview-cap",
 		});
 
@@ -518,12 +571,8 @@ export class FlSettingTab extends PluginSettingTab {
 					await this.plugin.saveSettings();
 				})
 			);
-	}
 
-	// ---------------- 浮动目录 ----------------
-
-	private renderToc(el: HTMLElement): void {
-		new Setting(el).setName("浮动目录").setHeading();
+		el.createDiv({ cls: "fl-subtitle", text: "浮动目录" });
 		el.createEl("p", {
 			text: "Feishu 式右侧悬浮大纲：滚动时自动高亮所在章节、点击条目跳转；只跟随当前激活的笔记。",
 			cls: "setting-item-description fl-preview-cap",
@@ -539,12 +588,8 @@ export class FlSettingTab extends PluginSettingTab {
 					syncToc(this.plugin);
 				})
 			);
-	}
 
-	// ---------------- 阅读与写作 ----------------
-
-	private renderWriting(el: HTMLElement): void {
-		new Setting(el).setName("阅读与写作").setHeading();
+		el.createDiv({ cls: "fl-subtitle", text: "阅读与写作" });
 
 		new Setting(el)
 			.setName("记住阅读位置")
@@ -567,11 +612,9 @@ export class FlSettingTab extends PluginSettingTab {
 			);
 	}
 
-	// ---------------- 图库多选插入器 ----------------
+	// ---------------- 图片 · 图库与附件清理 ----------------
 
-	private renderPicker(el: HTMLElement): void {
-		new Setting(el).setName("图库多选插入器").setHeading();
-
+	private renderTools(el: HTMLElement): void {
 		const folder = attachmentFolder(this.app);
 		new Setting(el)
 			.setName("搜索范围")
@@ -602,12 +645,8 @@ export class FlSettingTab extends PluginSettingTab {
 						await this.plugin.saveSettings();
 					})
 			);
-	}
 
-	// ---------------- 附件自动清理（图床管家） ----------------
-
-	private renderAttach(el: HTMLElement): void {
-		new Setting(el).setName("附件自动清理").setHeading();
+		el.createDiv({ cls: "fl-subtitle", text: "附件自动清理" });
 		el.createEl("p", {
 			text: "图床自动管家（全自动、无需管理）：启动后约 15 秒清理「全库无任何引用且超过 24 小时」的图片附件——只移入回收站（跟随 Obsidian「删除文件」设置），绝不直接抹除；此后每 24 小时复查一次。判定双保险：官方链接索引 + 全库文本兜底扫描。",
 			cls: "setting-item-description fl-preview-cap",
@@ -624,13 +663,12 @@ export class FlSettingTab extends PluginSettingTab {
 			);
 	}
 
-	// ---------------- 恢复默认 ----------------
+	// ---------------- 维护 · 恢复默认 ----------------
 
 	private renderReset(el: HTMLElement): void {
 		const item = new Setting(el)
 			.setName("恢复默认设置")
-			.setDesc("所有选项回到初始值；不影响已写入笔记的内容");
-		item.settingEl.addClass("fl-reset-item");
+			.setDesc("需要连点两次确认，防止误触");
 		item.addButton((b) => {
 			let armed = false;
 			let timer: number | null = null;

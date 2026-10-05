@@ -1,5 +1,6 @@
 import { Notice } from "obsidian";
 import type FeishuLitePlugin from "./main";
+import { validateProject } from "./image-core";
 
 /**
  * 图片附件自动清理（图床管家，全自动、无面板）：
@@ -37,6 +38,16 @@ export async function sweepUnusedAttachments(plugin: FeishuLitePlugin): Promise<
 		}
 	} catch (err) {
 		console.error("[feishu-lite] resolvedLinks 读取失败，跳过本次清理", err);
+		return [];
+	}
+	// Image edit projects own their original, including originals no longer embedded.
+	try {
+		for (const project of vault.getFiles().filter(f => f.path.endsWith(".fl-edit.json"))) {
+			const data = validateProject(JSON.parse(await vault.read(project)));
+			resolved.add(data.original);
+		}
+	} catch (err) {
+		console.error("[feishu-lite] 图片项目读取失败，跳过附件清理", err);
 		return [];
 	}
 

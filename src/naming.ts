@@ -42,6 +42,8 @@ export function buildImageName(
  * 支持：![[图.png|alt|300x200]]、![[图.png|300]]、![alt](path)
  */
 export function parseImageLine(line: string): ParsedImage | null {
+	const metadata = /\s*%%fl-image:.*?%%\s*$/.exec(line)?.[0] ?? "";
+	if (metadata) line = line.slice(0, line.length - metadata.length);
 	const wiki = WIKI_RE.exec(line);
 	if (wiki) {
 		const parts = wiki[1].split("|");
@@ -52,13 +54,13 @@ export function parseImageLine(line: string): ParsedImage | null {
 			parts.pop();
 		}
 		const alt = parts.join("|").trim();
-		return { embed: alt ? `![[${target}|${alt}]]` : `![[${target}]]` };
+		return { embed: (alt ? `![[${target}|${alt}]]` : `![[${target}]]`) + metadata };
 	}
 	const md = MD_RE.exec(line);
 	if (md) {
 		const alt = (md[1] ?? "").trim();
 		const path = (md[2] ?? "").trim();
-		return { embed: `![${alt}](${path})` };
+		return { embed: `![${alt}](${path})` + metadata };
 	}
 	return null;
 }

@@ -13,7 +13,7 @@ import { observeImageGrids } from "./image-grid";
  * - 块被渲染（未激活）时其行不在 visibleRanges 内，自然不受影响
  */
 
-const IMG_LINE_RE = /^\s*>\s*!\[\[([^[\]|]+)(?:\|[^[\]]*)?\]\]\s*$/;
+const IMG_LINE_RE = /^\s*>\s*!\[\[([^[\]|]+)(?:\|[^[\]]*)?\]\](?:\s*%%fl-image:.*?%%)?\s*$/;
 const CALLOUT_HEAD_RE = /^\s*>\s*\[!img-[2-4]\][+-]?\s*$/;
 const MAX_WALK = 80;
 

@@ -13,7 +13,7 @@ import type FeishuLitePlugin from "./main";
 
 let closeCurrent: (() => void) | null = null;
 
-function openLightbox(src: string, alt: string): void {
+export function openLightbox(src: string, alt: string): void {
 	closeCurrent?.();
 
 	const doc = document;
@@ -128,6 +128,7 @@ export function registerLightbox(plugin: FeishuLitePlugin): void {
 		document,
 		"click",
 		(e) => {
+			if (plugin.settings.imageTools) return;
 			if (!plugin.settings.imageLightbox) return;
 			const t = e.target;
 			if (!(t instanceof HTMLElement)) return;
@@ -157,6 +158,7 @@ export function lightboxEditorExtension(plugin: FeishuLitePlugin) {
 			constructor(view: EditorView) {
 				this.view = view;
 				this.onMouseDown = (e: MouseEvent) => {
+					if (plugin.settings.imageTools) return;
 					if (e.button !== 0) return;
 					if (e.defaultPrevented) return; // 已有其它处理（如灯箱自身）
 					if (!plugin.settings.imageLightbox) return;

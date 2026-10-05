@@ -1,4 +1,4 @@
-import { Editor, TFile } from "obsidian";
+import { Editor, Notice, TFile } from "obsidian";
 import type FeishuLitePlugin from "./main";
 import { openCascade } from "./cascade";
 import { TEXT_COL_OPTIONS, insertTextColumns } from "./column";
@@ -7,6 +7,7 @@ import { HL_COLOR_OPTIONS, pickColorAndHighlight, wrapHighlight } from "./highli
 import { insertGridSkeletonCols, openImagePicker, wrapSelectionIntoGrid } from "./image-grid";
 import { insertMermaid, insertMermaidType, MERMAID_TYPES } from "./mermaid-snippets";
 import type { MermaidType } from "./mermaid-snippets";
+import { isPluginEnabled } from "./util";
 import type { ListOption } from "./util";
 
 /** 参数式项的级联规格：回车后在菜单右侧展开，而非直接执行 */
@@ -124,6 +125,40 @@ export function openDatePicker(editor: Editor): void {
 	];
 	openCascade(editor, "日期 · 选格式", options, (v) => editor.replaceSelection(v));
 }
+
+const EXCALIDRAW_ID = "obsidian-excalidraw-plugin";
+
+/** 个别命令执行条件不满足时的专属提示（默认给通用文案） */
+const EXCALIDRAW_UNAVAILABLE: Record<string, string> = {
+	"excalidraw-insert-last-active-transclusion": "还没有最近编辑过的画板",
+};
+
+/** 画板：转发给 Excalidraw 插件的官方命令（画板的创建 / 命名 / 存储 / 渲染全归 Excalidraw，本插件只做入口） */
+function runExcalidraw(plugin: FeishuLitePlugin, command: string): void {
+	if (!isPluginEnabled(plugin.app, EXCALIDRAW_ID)) {
+		new Notice("Feishu Lite：画板需要 Excalidraw 插件（请先在社区插件中启用）");
+		return;
+	}
+	// app.commands 未进 obsidian.d.ts 公开类型（运行时存在）；窄接口收口
+	const registry = (plugin.app as unknown as {
+		commands?: { commands?: Record<string, unknown>; executeCommandById?: (id: string) => boolean };
+	}).commands;
+	const id = `${EXCALIDRAW_ID}:${command}`;
+	if (!registry?.commands || !(id in registry.commands)) {
+		new Notice("Feishu Lite：未找到 Excalidraw 命令（插件版本可能过低）");
+		return;
+	}
+	if (!registry.executeCommandById?.(id)) {
+		new Notice(`Feishu Lite：${EXCALIDRAW_UNAVAILABLE[command] ?? "Excalidraw 命令当前不可用"}`);
+	}
+}
+
+const BOARD_OPTIONS: ListOption<unknown>[] = [
+	{ label: "新建并嵌入", value: "excalidraw-autocreate-and-embed", hint: "新建画板并嵌入当前笔记（默认）" },
+	{ label: "新建 · 全屏编辑", value: "excalidraw-autocreate-newtab", hint: "新标签打开，先画后嵌" },
+	{ label: "嵌入已有画板", value: "excalidraw-insert-transclusion", hint: "从库里的画板中挑选" },
+	{ label: "嵌入最近画板", value: "excalidraw-insert-last-active-transclusion", hint: "插入最近编辑过的画板" },
+];
 
 export const SLASH_ITEMS: SlashItem[] = [
 	{
@@ -272,5 +307,25 @@ export const SLASH_ITEMS: SlashItem[] = [
 		hint: "/rq · 回车选格式（标准 / 中文 / 带星期 / 月日 / 含时间）",
 		keys: ["date", "riqi", "rq", "日期", "today"],
 		run: (_p, e) => openDatePicker(e),
+	},
+	{
+		id: "board",
+		name: "画板",
+		hint: "/hb · 新建画板并嵌入当前笔记（Excalidraw）",
+		keys: ["board", "huaban", "hb", "画板", "白板", "baiban", "bb", "excalidraw", "绘图", "huitu"],
+		run: (p) => runExcalidraw(p, "excalidraw-autocreate-and-embed"),
+	},
+	{
+		id: "board-pick",
+		name: "画板 · 选方式",
+		hint: "/hblx · 新建 / 全屏 / 嵌入已有 / 嵌入最近",
+		keys: ["hblx", "huabanxuanze", "画板方式", "画板选项", "嵌入画板", "插入画板"],
+		secondary: true,
+		params: {
+			title: "画板 · 选方式",
+			options: BOARD_OPTIONS,
+			run: (p, _e, _f, v) => runExcalidraw(p, v as string),
+		},
+		run: (p, e) => openCascade(e, "画板 · 选方式", BOARD_OPTIONS, (v) => runExcalidraw(p, v as string)),
 	},
 ];

@@ -1,4 +1,5 @@
-import { Plugin } from "obsidian";
+import { MarkdownView, Plugin } from "obsidian";
+import type { EditorView } from "@codemirror/view";
 import { DEFAULT_SETTINGS, FlSettingTab, applyCssVars } from "./settings";
 import type { FlSettings } from "./settings";
 import { SlashSuggest } from "./slash";
@@ -28,15 +29,21 @@ import {
 	openDatePicker,
 } from "./slash-items";
 import { closeTablePicker, openTablePicker } from "./table-picker";
+import { CommentsController } from "./comments";
+import { ImageToolsController } from "./image-tools";
 
 export default class FeishuLitePlugin extends Plugin {
 	settings!: FlSettings;
+	comments!: CommentsController;
+	imageTools!: ImageToolsController;
 
 	async onload(): Promise<void> {
 		await this.loadSettings();
 		applyCssVars(this.settings);
 
 		this.addSettingTab(new FlSettingTab(this.app, this));
+		this.comments = new CommentsController(this);
+		this.imageTools = new ImageToolsController(this);
 
 		// 斜杠菜单（行首 / 唤起）
 		this.registerEditorSuggest(new SlashSuggest(this));
@@ -152,5 +159,10 @@ export default class FeishuLitePlugin extends Plugin {
 	async saveSettings(): Promise<void> {
 		await this.saveData(this.settings);
 		applyCssVars(this.settings);
+		for (const leaf of this.app.workspace.getLeavesOfType("markdown")) {
+			if (!(leaf.view instanceof MarkdownView)) continue;
+			const cm = (leaf.view.editor as unknown as { cm?: EditorView }).cm;
+			if (cm && !cm.composing) cm.dispatch({ selection: cm.state.selection });
+		}
 	}
 }

@@ -110,11 +110,11 @@ export function openImagePicker(plugin: FeishuLitePlugin, editor: Editor, source
 	}).open();
 }
 
-const GRID_CONTENT = '.callout[data-callout^="img-"] .callout-content';
+const GRID_CONTENT = '.callout:is([data-callout="img-2"],[data-callout="img-3"],[data-callout="img-4"]) .callout-content';
 
 /** 图片嵌入可能尚未生成 img；先按嵌入节点判定，兼容异步加载 */
 function isImageEmbed(el: Element): boolean {
-	return el.matches("img, .image-embed") ||
+	return el.matches("img, .image-embed, .fl-image-figure") ||
 		(el.matches(".internal-embed") && isImagePath(el.getAttribute("src") ?? "")) ||
 		(el.tagName === "A" && !el.textContent?.trim() && !!el.querySelector("img"));
 }

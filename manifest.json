@@ -1,9 +1,9 @@
 {
 	"id": "feishu-lite",
 	"name": "Feishu Lite",
-	"version": "0.1.8",
+	"version": "0.2.7",
 	"minAppVersion": "1.6.6",
-	"description": "飞书文档风格的编辑体验：斜杠菜单、图片分栏网格、粘贴自动命名、彩色高亮。Lark-doc-style editing: slash menu, image grids, paste auto-rename, colored highlights.",
+	"description": "笔记批注与回复、图片工具条与裁剪标注、斜杠菜单、图片分栏、粘贴命名和彩色高亮",
 	"author": "mxpai",
 	"authorUrl": "https://github.com/mx-pai",
 	"isDesktopOnly": false

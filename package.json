@@ -1,12 +1,13 @@
 {
 	"name": "feishu-lite",
-	"version": "0.1.0",
-	"description": "飞书文档风格编辑体验 for Obsidian：斜杠菜单 / 图片分栏 / 粘贴自动命名 / 彩色高亮",
+	"version": "0.2.7",
+	"description": "Obsidian 文档增强：批注线程、图片工具条、裁剪标注、分栏与划词高亮",
 	"private": true,
 	"type": "module",
 	"scripts": {
 		"dev": "node esbuild.config.mjs",
-		"build": "tsc -noEmit -skipLibCheck && node esbuild.config.mjs production"
+		"build": "tsc -noEmit -skipLibCheck && node esbuild.config.mjs production",
+		"test": "node --test tests/core.test.mjs tests/safety.test.mjs"
 	},
 	"devDependencies": {
 		"@codemirror/state": "^6.5.0",

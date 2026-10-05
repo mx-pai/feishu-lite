@@ -3,12 +3,13 @@ import type { ViewUpdate } from "@codemirror/view";
 import { buildWrapSpec, currentWrapOpen, lineInFence } from "./wrap-core";
 import { HL_COLORS } from "./highlight";
 import type FeishuLitePlugin from "./main";
+import { editorInfoField } from "obsidian";
 
 /**
  * 划词工具条：编辑视图选中文字时浮现的小工具条。
  * - 只放「没有快捷键可替代」的动作：7 色高亮 / 直接换色（黄点 = 默认 ==文字==）+ 行内代码 + 删除线
  * - Feishu 式切换：已生效的样式（按钮点亮）再点一次 = 取消；不同样式之间直接互转、不叠加
- * - 仅单行选区、且不在代码块内时出现；点击按钮不抢焦点（mousedown 阻止默认）、选区保持
+ * - 单行选区提供格式工具，跨行选区提供批注；代码块内不显示；点击保留选区
  * - 包裹 / 换色逻辑在 wrap-core（纯计算）：标记内选区直接换标记、覆盖标记的选区先剥壳
  * - 位置跟随选区（拖动 / 滚动实时更新）；Esc 或选区消失后隐藏
  */
@@ -29,6 +30,8 @@ interface MeasureReq<T> {
 
 /** 应用或取消包裹：选区已包着同一标记 → 剥壳（再次点击 = 取消）；否则包裹 / 换色 / 互转 */
 function toggleWrap(view: EditorView, open: string, close: string): void {
+	const selection = view.state.selection.main;
+	if (view.state.doc.lineAt(selection.from).number !== view.state.doc.lineAt(selection.to).number) return;
 	const spec =
 		currentWrapOpen(view.state) === open
 			? buildWrapSpec(view.state, "", "")
@@ -65,7 +68,7 @@ export function selectToolbarExtension(plugin: FeishuLitePlugin) {
 						this.hide();
 					}
 				};
-				view.contentDOM.addEventListener("keydown", this.onKeyDown);
+				view.contentDOM.addEventListener("keydown", this.onKeyDown, true);
 			}
 
 			update(update: ViewUpdate): void {
@@ -76,7 +79,7 @@ export function selectToolbarExtension(plugin: FeishuLitePlugin) {
 
 			destroy(): void {
 				this.destroyed = true;
-				this.view.contentDOM.removeEventListener("keydown", this.onKeyDown);
+				this.view.contentDOM.removeEventListener("keydown", this.onKeyDown, true);
 				this.dom?.remove();
 				this.dom = null;
 				this.buttons = [];
@@ -91,7 +94,7 @@ export function selectToolbarExtension(plugin: FeishuLitePlugin) {
 				}
 				const fromLine = view.state.doc.lineAt(sel.from);
 				const toLine = view.state.doc.lineAt(sel.to);
-				if (fromLine.number !== toLine.number || lineInFence(view.state, fromLine.number)) {
+				if ((fromLine.number !== toLine.number && !plugin.settings.commentsEnabled) || lineInFence(view.state, fromLine.number)) {
 					if (this.shown) this.hide();
 					return;
 				}
@@ -109,7 +112,7 @@ export function selectToolbarExtension(plugin: FeishuLitePlugin) {
 				if (sel.empty || this.dismissed || !plugin.settings.selectToolbar || !view.hasFocus) return null;
 				const fromLine = view.state.doc.lineAt(sel.from);
 				const toLine = view.state.doc.lineAt(sel.to);
-				if (fromLine.number !== toLine.number || lineInFence(view.state, fromLine.number)) return null;
+				if ((fromLine.number !== toLine.number && !plugin.settings.commentsEnabled) || lineInFence(view.state, fromLine.number)) return null;
 				const a = view.coordsAtPos(sel.from);
 				const b = view.coordsAtPos(sel.to);
 				return a && b ? { a, b } : null;
@@ -148,45 +151,52 @@ export function selectToolbarExtension(plugin: FeishuLitePlugin) {
 
 			/** 同步「当前选区已生效样式」到按钮点亮态（Feishu 式：点亮的按钮再点一次 = 取消） */
 			private syncActive(): void {
+				const selection = this.view.state.selection.main;
+				const single = this.view.state.doc.lineAt(selection.from).number === this.view.state.doc.lineAt(selection.to).number;
 				const cur = currentWrapOpen(this.view.state);
-				for (const b of this.buttons) b.el.classList.toggle("is-active", cur === b.open);
+				for (const b of this.buttons) { b.el.classList.toggle("is-active", cur === b.open); b.el.classList.toggle("is-disabled", !single); b.el.setAttribute("aria-disabled", String(!single)); }
+				const comment = this.dom?.querySelector<HTMLElement>(".fl-selbar-comment");
+				if (comment) { comment.hidden = !plugin.settings.commentsEnabled; comment.setText(plugin.comments?.pending ? "关联批注" : "批注"); }
 			}
 
 			private ensureDom(): HTMLElement {
 				if (this.dom) return this.dom;
 				const doc = this.view.dom.ownerDocument; // 兼容弹出窗口（独立 document）
-				const dom = doc.createDiv({ cls: "fl-selbar" });
+				// Obsidian createDiv/createSpan 会自动挂到调用者上。
+				// Document 已有 html 根节点，必须在 body / 工具条内创建。
+				const dom = doc.body.createDiv({ cls: "fl-selbar" });
 				// 保住编辑器焦点与选区：按在工具条上不触发编辑器失焦
 				dom.addEventListener("mousedown", (e) => e.preventDefault());
+				dom.addEventListener("pointerdown", (e) => e.preventDefault());
 				for (const c of HL_COLORS) {
 					const isDefault = c.value === "yellow";
 					const open = isDefault ? "==" : `=={${c.value}}`;
 					// 复用高亮配色类：色点背景即该色，跟随用户自定义颜色
-					const dot = doc.createSpan({ cls: `fl-selbar-dot fl-hl-${c.value}` });
+					const dot = dom.createSpan({ cls: `fl-selbar-dot fl-hl-${c.value}` });
 					dot.title = isDefault ? "黄色高亮 ==文字==（再次点击取消）" : `${c.label}高亮（再次点击取消）`;
 					dot.addEventListener("click", () => {
 						toggleWrap(this.view, open, "==");
 					});
 					this.buttons.push({ open, el: dot });
-					dom.appendChild(dot);
 				}
-				const sep = doc.createSpan({ cls: "fl-selbar-sep" });
-				dom.appendChild(sep);
-				const code = doc.createSpan({ cls: "fl-selbar-code", text: "</>" });
+				dom.createSpan({ cls: "fl-selbar-sep" });
+				const code = dom.createSpan({ cls: "fl-selbar-code", text: "</>" });
 				code.title = "行内代码 `文字`（再次点击取消）";
 				code.addEventListener("click", () => {
 					toggleWrap(this.view, "`", "`");
 				});
 				this.buttons.push({ open: "`", el: code });
-				dom.appendChild(code);
-				const strike = doc.createSpan({ cls: "fl-selbar-strike", text: "S" });
+				const strike = dom.createSpan({ cls: "fl-selbar-strike", text: "S" });
 				strike.title = "删除线 ~~文字~~（再次点击取消）";
 				strike.addEventListener("click", () => {
 					toggleWrap(this.view, "~~", "~~");
 				});
 				this.buttons.push({ open: "~~", el: strike });
-				dom.appendChild(strike);
-				doc.body.appendChild(dom);
+				const comment = dom.createEl("button", { cls: "fl-selbar-comment", text: "批注", attr: { "aria-label": "为选中文字添加批注" } });
+				comment.addEventListener("click", () => {
+					const info = this.view.state.field(editorInfoField, false);
+					if (info?.file && info.editor) { plugin.comments.createFromEditor(info.editor, info.file); this.dismissed = true; this.hide(); }
+				});
 				this.dom = dom;
 				return dom;
 			}

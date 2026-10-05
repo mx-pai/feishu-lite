@@ -146,14 +146,14 @@ function ensurePanel(plugin: FeishuLitePlugin): void {
 	const head = panel.createDiv({ cls: "fl-toc-head" });
 	head.addEventListener("mousedown", (ev) => ev.preventDefault()); // 点标题栏不抢编辑焦点
 	head.createSpan({ cls: "fl-toc-title", text: "目录" });
-	// 收起按钮固定在标题栏右端，箭头朝右（面板贴屏幕右缘，「收起」= 向右收）
+	// 收起按钮固定在标题栏右端，箭头朝右（面板贴屏幕右缘，「收起」= 收回右缘窄轨）
+	// 点击只「收起」为右缘窄轨（悬停自动再展开），不写 tocVisible=false 彻底关闭 ——
+	// 避免「点一下浮层整个消失」的误操作；彻底关闭请走设置页开关
 	const hideBtn = head.createEl("button", { cls: "fl-toc-hide", text: "»" });
 	hideBtn.setAttribute("aria-label", "收起目录");
-	hideBtn.onclick = async (ev) => {
+	hideBtn.onclick = (ev) => {
 		ev.stopPropagation();
-		plugin.settings.tocVisible = false;
-		await plugin.saveSettings();
-		syncToc(plugin);
+		setPanelOpen(false);
 	};
 
 	const listEl = panel.createDiv({ cls: "fl-toc-list" });

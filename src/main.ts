@@ -145,7 +145,7 @@ export default class FeishuLitePlugin extends Plugin {
 			name: "视图：显示 / 展开浮动目录",
 			callback: async () => {
 				// 关闭 → 开启并直接展开；已开启 → 只切换展开 / 窄轨，不会整体隐藏
-				// （整体关闭走面板「»」或设置页开关，避免快捷键误触把浮层关掉）
+				// （整体关闭走设置页开关；面板「»」只收窄轨，避免误触把浮层整个关掉）
 				if (!this.settings.tocVisible) {
 					this.settings.tocVisible = true;
 					await this.saveSettings();

@@ -135,6 +135,15 @@ body.theme-dark {
 .markdown-source-view.cm-s-obsidian span.cm-highlight.fl-hl-purple { background-color: var(--fl-hl-purple); }
 .markdown-source-view.cm-s-obsidian span.cm-highlight.fl-hl-gray { background-color: var(--fl-hl-gray); }
 
+/* 阅读视图：原生 == 先把 {color} 包进 <mark>，用更高选择器权重盖过核心 / 主题的 mark 样式 */
+.markdown-preview-view mark.fl-hl-red { background-color: var(--fl-hl-red); }
+.markdown-preview-view mark.fl-hl-orange { background-color: var(--fl-hl-orange); }
+.markdown-preview-view mark.fl-hl-yellow { background-color: var(--fl-hl-yellow); }
+.markdown-preview-view mark.fl-hl-green { background-color: var(--fl-hl-green); }
+.markdown-preview-view mark.fl-hl-blue { background-color: var(--fl-hl-blue); }
+.markdown-preview-view mark.fl-hl-purple { background-color: var(--fl-hl-purple); }
+.markdown-preview-view mark.fl-hl-gray { background-color: var(--fl-hl-gray); }
+
 /* Live Preview 隐藏 =={red} 与结尾 == 语法标记（沿用 Obsidian 自身的零字号技巧） */
 .fl-hl-syntax {
 	font-size: 0;

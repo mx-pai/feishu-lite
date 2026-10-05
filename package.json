@@ -1,6 +1,6 @@
 {
 	"name": "feishu-lite",
-	"version": "0.2.7",
+	"version": "0.2.8",
 	"description": "Obsidian 文档增强：批注线程、图片工具条、裁剪标注、分栏与划词高亮",
 	"private": true,
 	"type": "module",

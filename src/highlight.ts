@@ -7,7 +7,8 @@ import type { ListOption } from "./util";
 
 /**
  * 文本高亮：默认 ==文字== + 彩色 =={red}文字==
- * - 阅读视图：MarkdownPostProcessor 替换为 <mark class="fl-hl-*">
+ * - 阅读视图：MarkdownPostProcessor 替换为 <mark class="fl-hl-*">；
+ *   兼容原生 == 先行渲染出的 <mark>{color}文字</mark>（剥前缀 + 换配色）
  * - 编辑视图（Live Preview）：CM6 装饰（仅用 mark 装饰，避免与原生 == 渲染的 replace 装饰冲突）
  */
 
@@ -54,6 +55,7 @@ export function wrapHighlight(editor: Editor, color: string): void {
 
 /** 阅读视图渲染 */
 export function highlightPostProcessor(el: HTMLElement, _ctx: MarkdownPostProcessorContext): void {
+	// 路径 1：裸文本 =={color}文字==（原生 == 尚未处理的场景，直接替换文本节点）
 	const walker = document.createTreeWalker(el, NodeFilter.SHOW_TEXT, {
 		acceptNode: (node) => {
 			const value = (node as Text).nodeValue;
@@ -89,6 +91,23 @@ export function highlightPostProcessor(el: HTMLElement, _ctx: MarkdownPostProces
 		if (last < text.length) frag.appendChild(document.createTextNode(text.slice(last)));
 		node.parentNode?.replaceChild(frag, node);
 	}
+
+	// 路径 2：阅读视图里 Obsidian 原生 == 会先于本处理器把 =={red}文字== 渲染成
+	// <mark>{red}文字</mark>（花括号原样保留、默认黄底）。此时回改已生成的 <mark>：
+	// 剥掉首文本节点的 "{color}" 前缀，并换上本插件配色类。
+	el.querySelectorAll("mark").forEach((mark) => {
+		if (mark.closest("code, pre, a")) return;
+		if (mark.classList.contains("fl-comment-read")) return;
+		if (Array.from(mark.classList).some((cls) => cls.startsWith("fl-hl-"))) return;
+		const prefix = /^\{([a-z]+)\}/.exec(mark.textContent ?? "");
+		if (!prefix || !COLOR_SET.has(prefix[1])) return;
+		const first = mark.firstChild;
+		if (!first || first.nodeType !== Node.TEXT_NODE) return;
+		const value = first.nodeValue ?? "";
+		if (!value.startsWith(prefix[0])) return;
+		first.nodeValue = value.slice(prefix[0].length);
+		mark.classList.add(`fl-hl-${prefix[1]}`);
+	});
 }
 
 /** 编辑视图（Live Preview）渲染 */

@@ -1,10 +1,10 @@
 # Feishu Lite
 
-**飞书文档风格的 Obsidian 编辑体验** —— 笔记批注、图片排版与裁剪标注、斜杠菜单、粘贴自动命名、彩色高亮、表格 / 列表增强、浮动目录。
+**飞书文档风格的 Obsidian 编辑体验。** 批注、图片、斜杠命令、彩色高亮——每项能力见下方配图展示。
 
-Feishu-doc-style editing for Obsidian: note annotations, image layout & crop-annotate, slash menu, image grids, paste auto-rename, colored highlights, code line numbers, and more.
+Lark-doc-style editing for Obsidian: annotations, image layout & crop-annotate, slash menu, image grids, paste auto-rename, colored highlights, code line numbers, and more.
 
-## 截图
+## 功能展示
 
 **笔记批注** —— 划词新建批注线程，支持回复、解决 / 重新打开；正文标记与侧栏面板，数据保存在笔记内
 
@@ -12,9 +12,13 @@ Feishu-doc-style editing for Obsidian: note annotations, image layout & crop-ann
 
 <img src="docs/img/comments-panel.png" alt="批注面板：待处理 / 已解决、原文、解决、重新关联、移动" width="440">
 
-**代码块行号** —— 语言徽标、行号与复制按钮
+**斜杠菜单** —— 行首 `/` 唤起，中文 / 英文 / 拼音匹配；回车选类型、参数级联展开
 
-![代码块：语言徽标、行号与复制](docs/img/code-block.png)
+![斜杠菜单：高亮块、代码块、Mermaid、表格等](docs/img/slash.png)
+
+**浮动目录** —— 右缘窄轨常驻，悬停展开为大纲卡片；滚动跟随、点击跳转
+
+![浮动目录：悬停展开并跟踪当前章节](docs/img/toc.png)
 
 **图片分栏** —— `img-2/3/4` 网格，多图粘贴自动成栏
 
@@ -23,6 +27,10 @@ Feishu-doc-style editing for Obsidian: note annotations, image layout & crop-ann
 **彩色高亮** —— `=={red}文字==` 七色，划词工具条一键套用
 
 ![彩色高亮：七种颜色](docs/img/highlights.png)
+
+**代码块行号** —— 语言徽标、行号与复制按钮
+
+![代码块：语言徽标、行号与复制](docs/img/code-block.png)
 
 ## 功能亮点
 

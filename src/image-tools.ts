@@ -26,7 +26,7 @@ export class ImageToolsController {
  constructor(readonly plugin: FeishuLitePlugin) {
   document.querySelectorAll(".fl-image-toolbar,.fl-image-resize,.fl-image-menu").forEach(el=>el.remove());
   plugin.registerMarkdownPostProcessor((el,ctx) => { ctx.addChild(new ImageToolsRenderChild(el,ctx,this)); },90);
-  plugin.registerEditorExtension(this.editorExtension());
+  plugin.registerEditorExtension(ImageToolsController.editorViewPlugin(this));
   plugin.registerEditorExtension(StateField.define({create:state => this.metadataDecorations(state),update:(d,tr) => tr.docChanged || tr.selection || tr.effects.length ? this.metadataDecorations(tr.state) : d,provide:f => EditorView.decorations.from(f)}));
   const onImageClick=(e:MouseEvent) => {
    if (!plugin.settings.imageTools) return; const target=e.target as HTMLElement;
@@ -94,7 +94,7 @@ export class ImageToolsController {
   try{textBlock=imageTextBlock(text,context.ref);grid=imageGrid(text,context.ref);}catch{/* Source layouts with mixed content remain manually editable. */}
   if(textBlock){const block=textBlock;menu.addItem(item=>item.setTitle('编辑旁边文字').setIcon('text').onClick(()=>new TextDialog(this.plugin.app,'图片旁边的文字',block.content,body=>this.change(context,(s,r)=>{const current=imageTextBlock(s,r);if(!current)throw new Error('图文排列已变化，请重新点击图片');return setImageText(s,r,current.side,body);}),true,true,false).open()));}
   menu.addItem(item=>item.setTitle('图片分栏').setIcon('columns-2').onClick(()=>new ChoiceDialog(this.plugin.app,[{label:'两列',value:2},{label:'三列',value:3},{label:'四列',value:4},{label:'取消分栏',value:0}],cols=>this.change(context,(s,r)=>setImageGrid(s,r,cols)),'图片分栏').open()));
-  if(grid){menu.addItem(item=>item.setTitle('向前移动').setIcon('arrow-left').setDisabled(grid!.index<=0).onClick(()=>{void this.change(context,(s,r)=>reorderImage(s,r,-1)).catch(reportError);}));menu.addItem(item=>item.setTitle('向后移动').setIcon('arrow-right').setDisabled(grid!.index>=grid!.rows.length-1).onClick(()=>{void this.change(context,(s,r)=>reorderImage(s,r,1)).catch(reportError);}));}
+  if(grid){menu.addItem(item=>item.setTitle('向前移动').setIcon('arrow-left').setDisabled(grid.index<=0).onClick(()=>{void this.change(context,(s,r)=>reorderImage(s,r,-1)).catch(reportError);}));menu.addItem(item=>item.setTitle('向后移动').setIcon('arrow-right').setDisabled(grid.index>=grid.rows.length-1).onClick(()=>{void this.change(context,(s,r)=>reorderImage(s,r,1)).catch(reportError);}));}
   menu.addSeparator();
   menu.addItem(item=>item.setTitle('恢复原始尺寸').setIcon('rotate-ccw').onClick(()=> {void this.change(context,(s,r)=>patchImage(s,r,{width:0})).catch(reportError);}));
   if(file && this.plugin.app.vault.getAbstractFileByPath(file.path+'.fl-edit.json') instanceof TFile)menu.addItem(item=>item.setTitle('恢复原图').setIcon('undo').onClick(()=> {void this.restore(context).catch(reportError);}));
@@ -109,8 +109,7 @@ export class ImageToolsController {
    this.active?.classList.remove('fl-image-selected');this.active=img;img.classList.add('fl-image-selected');this.resizeObserver?.disconnect();this.resizeObserver?.observe(img);return;
   }
  }
- private editorExtension() {
-  const controller=this;
+ private static editorViewPlugin(controller: ImageToolsController) {
   return ViewPlugin.fromClass(class {
    private down:(e:MouseEvent) => void;
    private observer:MutationObserver;
@@ -185,13 +184,13 @@ export class ImageToolsController {
    if (!ref) continue;
    this.contexts.set(img,{file,ref,text});
    let embed=img.closest<HTMLElement>('.image-embed,.internal-embed,.fl-image-media');
-   if(!embed) { embed=el.ownerDocument.createElement('span'); embed.className='fl-image-media'; img.replaceWith(embed); embed.appendChild(img); }
+   if(!embed) { embed=el.ownerDocument.win.createSpan({cls:'fl-image-media'}); img.replaceWith(embed); embed.appendChild(img); }
    let figure=embed.parentElement?.matches('.fl-image-figure') ? embed.parentElement : null;
-   if (!figure) { figure=el.ownerDocument.createElement('span'); figure.className='fl-image-figure'; embed.replaceWith(figure); figure.appendChild(embed); }
+   if (!figure) { figure=el.ownerDocument.win.createSpan({cls:'fl-image-figure'}); embed.replaceWith(figure); figure.appendChild(embed); }
    if (ref.align) figure.dataset.align=ref.align; else delete figure.dataset.align;
    // Native grids stretch embeds; explicit widths remain occurrence-owned in every layout.
-   embed.style.width=ref.width ? `${ref.width}px` : ''; embed.style.maxWidth='100%';
-   if (ref.width) { img.style.width='100%'; img.style.height='auto'; } else { img.style.width=''; img.style.height=''; }
+   embed.setCssStyles({width: ref.width ? `${ref.width}px` : '', maxWidth: '100%'});
+   if (ref.width) { img.setCssStyles({width: '100%', height: 'auto'}); } else { img.setCssStyles({width: '', height: ''}); }
    let caption=figure.querySelector<HTMLElement>('.fl-image-caption'); if (ref.caption) { if (!caption) caption=figure.createSpan({cls:'fl-image-caption'}); if (caption.textContent !== ref.caption) caption.setText(ref.caption); caption.style.maxWidth=ref.width?`${ref.width}px`:''; } else caption?.remove();
   }
   this.decorateImageText(el);
@@ -204,8 +203,7 @@ export class ImageToolsController {
    const content=Array.from(callout.children).find(e=>e.classList.contains('callout-content')) as HTMLElement|undefined;
    if(!content || content.querySelector(':scope > .fl-image-text-media')) continue;
    const first=content.firstElementChild; if(!first || !first.querySelector('img') && !first.matches('img,.fl-image-figure,.image-embed')) continue;
-   const media=content.ownerDocument.createElement('div'), body=content.ownerDocument.createElement('div');
-   media.className='fl-image-text-media'; body.className='fl-image-text-body';
+   const media=content.ownerDocument.win.createDiv({cls:'fl-image-text-media'}), body=content.ownerDocument.win.createDiv({cls:'fl-image-text-body'});
    media.appendChild(first); body.append(...Array.from(content.childNodes)); content.append(media,body);
   }
  }
@@ -235,7 +233,7 @@ export class ImageToolsController {
   const r=this.active?.getBoundingClientRect(), w=this.toolbar.offsetWidth, h=this.toolbar.offsetHeight;
   const top=Math.max(8,pane?.top ?? 8),bottom=Math.min(window.innerHeight-8,pane?.bottom ?? window.innerHeight-8);
   this.toolbar.style.left=`${Math.max(left,Math.min(r?.left ?? left,right-w))}px`;
-  this.toolbar.style.top=`${Math.max(top,Math.min((r?.bottom ?? top)+6+h<=bottom?(r?.bottom ?? top)+6:(r?.top ?? bottom)-h-6,bottom-h))}px`; this.toolbar.style.right='auto'; this.toolbar.style.bottom='auto';
+  this.toolbar.style.top=`${Math.max(top,Math.min((r?.bottom ?? top)+6+h<=bottom?(r?.bottom ?? top)+6:(r?.top ?? bottom)-h-6,bottom-h))}px`;
  }
  async showToolbar(img:HTMLImageElement | null,context:ImageContext): Promise<void> {
   if(img && img===this.active && this.toolbar && this.activeContext?.file.path===context.file.path){this.position();return;}
@@ -254,7 +252,7 @@ export class ImageToolsController {
   action(bar,'×',()=>this.closeToolbar(),'fl-toolbar-close').setAttribute('aria-label','关闭图片工具条');if(img)this.addResizeHandles(img);this.position();
  }
  private addResizeHandles(img:HTMLImageElement):void {
-  const frame=img.ownerDocument.createElement('div'); frame.className='fl-image-resize'; img.ownerDocument.body.appendChild(frame); this.resizeFrame=frame;
+  const frame=img.ownerDocument.win.createDiv({cls:'fl-image-resize'}); img.ownerDocument.body.appendChild(frame); this.resizeFrame=frame;
   for(const [name,x,y] of [['nw',-1,-1],['ne',1,-1],['sw',-1,1],['se',1,1],['w',-1,0],['e',1,0]] as const) {
    const handle=frame.createEl('button',{cls:'fl-image-resize-handle fl-resize-'+name,attr:{'aria-label':'拖动缩放图片，方向键微调','type':'button'}});
    handle.addEventListener('pointerdown',e=>{if(this.active && this.activeContext)this.beginResize(e,handle,this.active,this.activeContext,x,y);});
@@ -275,7 +273,7 @@ export class ImageToolsController {
   const clean=()=> { owner.removeEventListener('pointermove',move,true); owner.removeEventListener('pointerup',up,true); owner.removeEventListener('pointercancel',cancel,true); try { if(handle.hasPointerCapture(e.pointerId)) handle.releasePointerCapture(e.pointerId); } catch { /* Detached handle. */ } embed.style.width=oldEmbed; img.style.width=oldWidth; img.style.height=oldHeight;this.resizeFrame?.classList.remove('is-resizing');this.toolbar?.querySelector('.fl-image-size')?.setText(`${context.ref.width ?? Math.round(bounds.width)} px`);this.cancelResize=null; this.position(); };
   const cancel=(event?:PointerEvent)=> { if(event && event.pointerId!==e.pointerId) return; clean(); };
   const move=(event:PointerEvent)=> { if(event.pointerId!==e.pointerId) return; if(!img.isConnected){clean();return;} event.preventDefault(); const dx=event.clientX-e.clientX,dy=event.clientY-e.clientY; moved ||= Math.hypot(dx,dy)>2;
-   width=resizedImageWidth(bounds.width,bounds.height,dx,dy,hx,hy,limit,context.ref.align==='center'); embed.style.width=width+'px'; img.style.width='100%'; img.style.height='auto';this.toolbar?.querySelector('.fl-image-size')?.setText(width+' px');this.position(); };
+   width=resizedImageWidth(bounds.width,bounds.height,dx,dy,hx,hy,limit,context.ref.align==='center'); embed.setCssStyles({width: width + 'px'}); img.setCssStyles({width: '100%', height: 'auto'});this.toolbar?.querySelector('.fl-image-size')?.setText(width+' px');this.position(); };
   const up=(event:PointerEvent)=> { if(event.pointerId!==e.pointerId) return; move(event); clean(); if(moved) void this.change(context,(s,r)=>patchImage(s,r,{width}),true).catch(reportError); };
   this.cancelResize=cancel; owner.addEventListener('pointermove',move,true); owner.addEventListener('pointerup',up,true); owner.addEventListener('pointercancel',cancel,true); try { handle.setPointerCapture(e.pointerId); } catch { /* Document listeners also cover uncaptured pointers. */ }
  }
@@ -283,7 +281,7 @@ export class ImageToolsController {
   let nextRef:ImageRef|undefined,nextText='';
   await editNote(this.plugin.app,context.file,s=> {const current=locateImage(s,context.ref);if(current.target!==context.ref.target)throw new Error('这次图片引用已被替换，请重新点击');nextText=edit(s,current);nextRef=parseImages(nextText).find(r=>r.from===current.from);return nextText;});
   if(keep && nextRef){context.ref=nextRef;context.text=nextText;
-   if(this.active && this.activeContext===context){this.contexts.set(this.active,context);const embed=this.active.closest<HTMLElement>('.image-embed,.internal-embed,.fl-image-media') ?? this.active;embed.style.width=nextRef.width?nextRef.width+'px':'';if(nextRef.width){this.active.style.width='100%';this.active.style.height='auto';}const figure=embed.closest<HTMLElement>('.fl-image-figure');if(figure && nextRef.align)figure.dataset.align=nextRef.align;
+   if(this.active && this.activeContext===context){this.contexts.set(this.active,context);const embed=this.active.closest<HTMLElement>('.image-embed,.internal-embed,.fl-image-media') ?? this.active;embed.setCssStyles({width: nextRef.width ? `${nextRef.width}px` : ''});if(nextRef.width)this.active.setCssStyles({width: '100%', height: 'auto'});const figure=embed.closest<HTMLElement>('.fl-image-figure');if(figure && nextRef.align)figure.dataset.align=nextRef.align;
     this.toolbar?.querySelector('.fl-image-center')?.setAttribute('aria-pressed',String(nextRef.align==='center'));this.toolbar?.querySelector('.fl-image-size')?.setText(`${nextRef.width ?? Math.round(this.active.getBoundingClientRect().width)} px`);this.position();
    }
   }else this.closeToolbar();this.schedule();

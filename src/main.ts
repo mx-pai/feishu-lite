@@ -10,7 +10,7 @@ import { highlightPostProcessor, highlightViewPlugin, pickColorAndHighlight } fr
 import { colPostProcessor } from "./column";
 import { codePrettyPostProcessor } from "./code-pretty";
 import { lightboxEditorExtension, registerLightbox } from "./lightbox";
-import { initToc, syncToc } from "./toc";
+import { initToc, showTocPanel, toggleTocPanel } from "./toc";
 import { gridSourcePlugin } from "./grid-source";
 import { cycleColumnAlign, editTableAtCursor, formatTableAtCursor, tableEnhanceExtension } from "./table-enhance";
 import { listEnhanceExtension } from "./list-enhance";
@@ -142,11 +142,17 @@ export default class FeishuLitePlugin extends Plugin {
 		});
 		this.addCommand({
 			id: "toggle-toc",
-			name: "视图：切换浮动目录",
+			name: "视图：显示 / 展开浮动目录",
 			callback: async () => {
-				this.settings.tocVisible = !this.settings.tocVisible;
-				await this.saveSettings();
-				syncToc(this);
+				// 关闭 → 开启并直接展开；已开启 → 只切换展开 / 窄轨，不会整体隐藏
+				// （整体关闭走面板「»」或设置页开关，避免快捷键误触把浮层关掉）
+				if (!this.settings.tocVisible) {
+					this.settings.tocVisible = true;
+					await this.saveSettings();
+					showTocPanel(this);
+				} else {
+					toggleTocPanel(this);
+				}
 			},
 		});
 	}

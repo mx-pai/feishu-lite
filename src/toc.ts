@@ -109,6 +109,31 @@ export function syncToc(plugin: FeishuLitePlugin): void {
 	bindTracking(plugin);
 }
 
+/** 显式开启（命令 / 设置页开关）时调用：确保面板可见并直接展开，给出明确反馈。
+ *  鼠标不在面板上时展开态会保持，直到下一次「悬停后移开」再回到常态收起 */
+export function showTocPanel(plugin: FeishuLitePlugin): void {
+	syncToc(plugin);
+	setPanelOpen(true);
+}
+
+/** 已开启状态下调用：在「展开卡片 ↔ 收起窄轨」间切换，永不整体隐藏（专题：避免热键误关浮层） */
+export function toggleTocPanel(plugin: FeishuLitePlugin): void {
+	syncToc(plugin);
+	const panel = state?.panel;
+	if (!panel) return;
+	setPanelOpen(!panel.hasClass("is-open"));
+}
+
+function setPanelOpen(open: boolean): void {
+	const st = state;
+	if (!st?.panel) return;
+	if (st.hoverTimer !== null) {
+		window.clearTimeout(st.hoverTimer);
+		st.hoverTimer = null;
+	}
+	st.panel.toggleClass("is-open", open);
+}
+
 // ---------------- 面板 DOM ----------------
 
 function ensurePanel(plugin: FeishuLitePlugin): void {

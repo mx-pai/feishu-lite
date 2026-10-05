@@ -333,7 +333,10 @@ body.theme-dark {
 	flex-shrink: 0;
 	font-size: var(--font-ui-smaller);
 }
-.fl-settings .fl-hero h2 {
+.fl-settings .fl-hero .fl-hero-title {
+	font-size: var(--h2-size);
+	font-weight: var(--h2-weight, 680);
+	line-height: 1.2;
 	margin: 0 0 2px;
 }
 .fl-settings .fl-hero-sub {

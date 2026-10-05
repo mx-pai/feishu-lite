@@ -33,7 +33,8 @@ const setup=String.raw`
  }
  return JSON.stringify({folder,editorReady:!!leaf.view.editor?.cm,checks:window.__flRun.checks});
 `;
-const scripts={layout:'image-layout.runtime.js',cleanup:'cleanup-runtime.js',toolbar:'image-toolbar.runtime.js',native:'image-native.runtime.js',arrow:'image-arrow.runtime.js'};
-const input=code==='setup' ? setup : scripts[code] ? (['toolbar','native','arrow'].includes(code)?'return await ':'')+readFileSync(root+'tests/'+scripts[code],'utf8') : code;
-const result=execFileSync('obsidian',['vault=new_obsidian','eval','code=(async()=>{'+bundle.outputFiles[0].text+';window.__flCore=__flCore;'+input+'})()'],{encoding:'utf8',maxBuffer:4*1024*1024});
+const scripts={layout:'image-layout.runtime.js',cleanup:'cleanup-runtime.js',toolbar:'image-toolbar.runtime.js',native:'image-native.runtime.js',arrow:'image-arrow.runtime.js',comment:'comment-read.runtime.js'};
+const prelude='if(document.visibilityState!=="visible")throw new Error("Obsidian 窗口不可见（"+document.visibilityState+"）；渲染被挂起，请解锁并显示窗口后重跑");';
+const input=code==='setup' ? setup : scripts[code] ? prelude+(['toolbar','native','arrow','comment'].includes(code)?'return await ':'')+readFileSync(root+'tests/'+scripts[code],'utf8') : code;
+const result=execFileSync('obsidian',['vault=new_obsidian','eval','code=(async()=>{'+bundle.outputFiles[0].text+';window.__flCore=__flCore;'+input+'})()'],{encoding:'utf8',maxBuffer:4*1024*1024,timeout:600000});
 process.stdout.write(result);

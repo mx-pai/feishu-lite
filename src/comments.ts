@@ -27,14 +27,7 @@ export class CommentsController {
   this.extension = StateField.define<DecorationSet>({create:s => this.decorations(s),update:(d,tr) => tr.docChanged || tr.selection || tr.effects.length ? this.decorations(tr.state) : d,provide:f => EditorView.decorations.from(f)});
   plugin.registerView(VIEW,leaf => new CommentsView(leaf,this));
   plugin.registerEditorExtension(this.extension);
-  const controller=this;
-  plugin.registerEditorExtension(ViewPlugin.fromClass(class {
-   private observer:MutationObserver; private timer:number|null=null; private destroyed=false; private owned=new Set<HTMLElement>();
-   private click=(event:MouseEvent) => { if (!this.view.state.selection.main.empty || event.button !== 0) return; const target=(event.target as HTMLElement)?.closest<HTMLElement>('[data-fl-thread]'), file=this.view.state.field(editorInfoField,false)?.file; if (target?.dataset.flThread && file) { event.preventDefault(); void controller.open(file,target.dataset.flThread).catch(reportError); } };
-   private bootstrap=() => { if (this.destroyed) return; const file=this.view.state.field(editorInfoField,false)?.file; if (!file) return; for (const el of Array.from(this.view.dom.querySelectorAll<HTMLElement>('.cm-embed-block .markdown-rendered'))) if (!controller.roots.has(el)) { this.owned.add(el); controller.addRoot(el,{sourcePath:file.path,getSectionInfo:() => null}); } };
-   constructor(private view:EditorView) { this.observer=new MutationObserver(() => { if (this.timer !== null) window.clearTimeout(this.timer); this.timer=window.setTimeout(() => { this.timer=null; this.bootstrap(); },100); }); this.observer.observe(view.contentDOM,{childList:true,subtree:true}); view.contentDOM.addEventListener('click',this.click,true); queueMicrotask(this.bootstrap); }
-   destroy(): void { this.destroyed=true; this.observer.disconnect(); this.view.contentDOM.removeEventListener('click',this.click,true); if (this.timer !== null) window.clearTimeout(this.timer); for (const el of this.owned) controller.removeRoot(el); }
-  }));
+  plugin.registerEditorExtension(CommentsController.embedViewPlugin(this));
   plugin.registerMarkdownPostProcessor((el,ctx) => { ctx.addChild(new CommentsRenderChild(el,ctx,this)); }, 100);
   plugin.registerEvent(plugin.app.workspace.on('file-open', f => { if (f?.extension === 'md') { this.file = f; this.pending = this.pending?.path === f.path ? this.pending : null; this.schedule(); } }));
   plugin.registerEvent(plugin.app.workspace.on('editor-change', () => this.schedule()));
@@ -48,6 +41,17 @@ export class CommentsController {
   plugin.addCommand({id:'comment-recover',name:'批注：恢复中断迁移',callback:async () => { try { const n = await recoverTransfers(plugin.app); this.schedule(); new Notice(`已恢复 ${n} 次批注迁移`); } catch(err) { reportError(err); } }});
   this.registerReadingSelection();
   plugin.app.workspace.onLayoutReady(() => { void recoverTransfers(plugin.app).catch(reportError); });
+ }
+
+ /** 编辑器内嵌笔记（.cm-embed-block）的批注根扫描与徽标点击；控制器以参数传入，供 ViewPlugin 内引用 */
+ private static embedViewPlugin(controller: CommentsController) {
+  return ViewPlugin.fromClass(class {
+   private observer:MutationObserver; private timer:number|null=null; private destroyed=false; private owned=new Set<HTMLElement>();
+   private click=(event:MouseEvent) => { if (!this.view.state.selection.main.empty || event.button !== 0) return; const target=(event.target as HTMLElement)?.closest<HTMLElement>('[data-fl-thread]'), file=this.view.state.field(editorInfoField,false)?.file; if (target?.dataset.flThread && file) { event.preventDefault(); void controller.open(file,target.dataset.flThread).catch(reportError); } };
+   private bootstrap=() => { if (this.destroyed) return; const file=this.view.state.field(editorInfoField,false)?.file; if (!file) return; for (const el of Array.from(this.view.dom.querySelectorAll<HTMLElement>('.cm-embed-block .markdown-rendered'))) if (!controller.roots.has(el)) { this.owned.add(el); controller.addRoot(el,{sourcePath:file.path,getSectionInfo:() => null}); } };
+   constructor(private view:EditorView) { this.observer=new MutationObserver(() => { if (this.timer !== null) window.clearTimeout(this.timer); this.timer=window.setTimeout(() => { this.timer=null; this.bootstrap(); },100); }); this.observer.observe(view.contentDOM,{childList:true,subtree:true}); view.contentDOM.addEventListener('click',this.click,true); queueMicrotask(this.bootstrap); }
+   destroy(): void { this.destroyed=true; this.observer.disconnect(); this.view.contentDOM.removeEventListener('click',this.click,true); if (this.timer !== null) window.clearTimeout(this.timer); for (const el of this.owned) controller.removeRoot(el); }
+  });
  }
  message(text: string): CommentMessage { const now = new Date().toISOString(); return {id:commentId(),author:this.plugin.settings.commentAuthor.trim() || '我',text,created:now,updated:now}; }
  createFromEditor(editor: Editor, file: TFile): void {
@@ -109,7 +113,7 @@ export class CommentsController {
     while ((node = walker.nextNode())) {
      if (node.parentElement?.closest('code,a,button,mark')) continue;
      const index = node.textContent?.indexOf(quote) ?? -1;
-     if (index >= 0) { const range = el.ownerDocument.createRange(); range.setStart(node,index); range.setEnd(node,index+quote.length); const mark = el.ownerDocument.createElement('mark'); mark.className = 'fl-comment-read' + (thread.status === 'resolved' ? ' is-resolved' : ''); mark.dataset.flThread=thread.id; mark.onclick=() => { void this.open(file,thread.id).catch(reportError); }; range.surroundContents(mark); break; }
+     if (index >= 0) { const range = el.ownerDocument.createRange(); range.setStart(node,index); range.setEnd(node,index+quote.length); const mark = el.ownerDocument.win.createEl('mark', { cls: 'fl-comment-read' + (thread.status === 'resolved' ? ' is-resolved' : '') }); mark.dataset.flThread=thread.id; mark.onclick=() => { void this.open(file,thread.id).catch(reportError); }; range.surroundContents(mark); break; }
     }
    }
    const button = action(target,thread.status === 'resolved' ? '✓' : '批注',() => this.open(file,thread.id),'fl-comment-badge');
@@ -120,7 +124,7 @@ export class CommentsController {
   if (!this.plugin.settings.commentsEnabled || state.field(editorLivePreviewField,false) !== true) return Decoration.none;
   const text = state.doc.toString(); let d; try { d = parseComments(text); } catch { return Decoration.none; }
   const ranges = [];
-  for (const re of [BLOCK_MARKER,COMMENT_MARKER]) for (const m of text.matchAll(new RegExp(re.source,'g'))) ranges.push(Decoration.replace({}).range(m.index!,m.index!+m[0].length));
+  for (const re of [BLOCK_MARKER,COMMENT_MARKER]) for (const m of text.matchAll(new RegExp(re.source,'g'))) ranges.push(Decoration.replace({}).range(m.index,m.index+m[0].length));
   if (d.storeTo > d.storeFrom) ranges.push(Decoration.replace({block:true}).range(d.storeFrom,d.storeTo));
   const file = state.field(editorInfoField,false)?.file;
   if (file) for (const t of d.threads) { const a = locateComment(d.body,t); if (a.state === 'detached') continue;

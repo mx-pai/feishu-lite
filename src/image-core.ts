@@ -16,14 +16,14 @@ function protectedRanges(text: string): {from:number;to:number}[] {
   if (fence || /^\s{4}\S|^\t/.test(line)) { ranges.push({from,to:at}); continue; }
   if (/^\s*%%\s*$/.test(line)) { hidden = !hidden; ranges.push({from,to:at}); continue; }
   if (hidden) ranges.push({from,to:at});
-  for (const c of line.matchAll(/`+[^`\n]*`+|%%.*?%%/g)) ranges.push({from:from+c.index!,to:from+c.index!+c[0].length});
+  for (const c of line.matchAll(/`+[^`\n]*`+|%%.*?%%/g)) ranges.push({from:from+c.index,to:from+c.index+c[0].length});
  }
  return ranges;
 }
 export function parseImages(text: string): ImageRef[] {
  const out: ImageRef[] = [], protectedParts = protectedRanges(text);
  for (const m of text.matchAll(EMBED)) {
-  const from = m.index!, to = from+m[0].length; if (protectedParts.some(r => from >= r.from && from < r.to)) continue;
+  const from = m.index, to = from+m[0].length; if (protectedParts.some(r => from >= r.from && from < r.to)) continue;
   const wiki = m[1] !== undefined, parts = (wiki ? m[1] : m[2]).split('|');
   let target = wiki ? parts.shift()!.trim() : m[3].trim(), title = '';
   if (!wiki) { const titled = /^(.*?)(\s+["'][\s\S]*["'])$/.exec(target); if (titled) { target = titled[1]; title = titled[2]; } target = target.replace(/^<([\s\S]*)>$/,'$1'); }
@@ -32,10 +32,12 @@ export function parseImages(text: string): ImageRef[] {
   if (parts.length && /^\d+(?:x\d+)?$/.test(parts[parts.length-1])) { const dimensions = parts.pop()!.split('x').map(Number); width = dimensions[0]; height = dimensions[1]; }
   const tail = /^[ \t]*%%fl-image:(.*?)%%/.exec(text.slice(to)); let id: string | undefined, caption = '', align:ImageAlign|undefined, end = to;
   if (tail) {
-   let record; try { record = JSON.parse(tail[1]); } catch { throw new Error('图片元数据损坏，原文已保留'); }
-   if (record.v !== 1 || typeof record.id !== 'string' || !/^[a-z0-9-]+$/.test(record.id) || typeof record.caption !== 'string') throw new Error('图片元数据版本或结构无效');
-   if (record.align !== undefined && !['left','center','right'].includes(record.align)) throw new Error('图片对齐方式无效');
-   id = record.id; caption = record.caption; align=record.align; end += tail[0].length;
+   let record: unknown; try { record = JSON.parse(tail[1]); } catch { throw new Error('图片元数据损坏，原文已保留'); }
+   const meta = record as {v?: unknown; id?: unknown; caption?: unknown; align?: unknown} | null;
+   if (!meta || meta.v !== 1 || typeof meta.id !== 'string' || !/^[a-z0-9-]+$/.test(meta.id) || typeof meta.caption !== 'string') throw new Error('图片元数据版本或结构无效');
+   if (meta.align === 'left' || meta.align === 'center' || meta.align === 'right') align = meta.align;
+   else if (meta.align !== undefined) throw new Error('图片对齐方式无效');
+   id = meta.id; caption = meta.caption; end += tail[0].length;
   }
   const lineFrom = text.lastIndexOf('\n',from-1)+1, next = text.indexOf('\n',end);
   out.push({from,to,end,raw:text.slice(from,end),token:m[0],target,alt:parts.join('|'),style:wiki?'wiki':'markdown',width,height,title,id,caption,align,prefix:text.slice(Math.max(0,from-48),from),suffix:text.slice(end,end+48),lineFrom,lineTo:next < 0 ? text.length : next});

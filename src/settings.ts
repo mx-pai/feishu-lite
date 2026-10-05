@@ -3,7 +3,7 @@ import type FeishuLitePlugin from "./main";
 import { buildImageName } from "./naming";
 import type { DateStyle } from "./naming";
 import { HL_COLORS } from "./highlight";
-import { syncToc } from "./toc";
+import { showTocPanel, syncToc } from "./toc";
 import { clearReadPositions } from "./read-position";
 
 export interface FlSettings {
@@ -211,7 +211,7 @@ export class FlSettingTab extends PluginSettingTab {
 
 		const hero = containerEl.createDiv({ cls: "fl-hero" });
 		const heroText = hero.createDiv({ cls: "fl-hero-text" });
-		heroText.createEl("h2", { text: "Feishu Lite" });
+		heroText.createDiv({ cls: "fl-hero-title", text: "Feishu Lite" });
 		heroText.createDiv({ cls: "fl-hero-sub", text: "文档增强 · 批注 / 图片 / 高亮 / 阅读" });
 		// 一键收起 / 展开全部分区（找某一项时不用来回滑动）
 		const allFolded = SECTION_IDS.every((id) => this.plugin.settings.settingsCollapsed[id] === true);
@@ -224,7 +224,7 @@ export class FlSettingTab extends PluginSettingTab {
 			if (allFolded) this.plugin.settings.settingsCollapsed = {};
 			else for (const id of SECTION_IDS) this.plugin.settings.settingsCollapsed[id] = true;
 			void this.plugin.saveSettings();
-			this.display();
+			this.refresh();
 		});
 
 		this.renderNaming(this.section("naming", "image", "图片 · 粘贴与命名", "粘贴 / 拖入图片时自动命名、压缩（落点跟随库的附件设置）"));
@@ -580,12 +580,13 @@ export class FlSettingTab extends PluginSettingTab {
 
 		new Setting(el)
 			.setName("显示浮动目录")
-			.setDesc("命令「视图：切换浮动目录」可随时开关（建议绑个快捷键）；面板默认收成右缘窄轨不遮正文，鼠标悬停自动展开，右上角「»」可整体收起。状态会记住")
+			.setDesc("命令「视图：显示 / 展开浮动目录」可随时唤出（建议绑快捷键）；面板默认收成右缘窄轨不遮正文，鼠标悬停自动展开；右上角「»」或本开关整体关闭。状态会记住")
 			.addToggle((t) =>
 				t.setValue(this.plugin.settings.tocVisible).onChange(async (v) => {
 					this.plugin.settings.tocVisible = v;
 					await this.plugin.saveSettings();
-					syncToc(this.plugin);
+					if (v) showTocPanel(this.plugin);
+					else syncToc(this.plugin);
 				})
 			);
 

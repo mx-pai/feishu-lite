@@ -32,7 +32,7 @@ export function parseComments(text: string): CommentDocument {
  const stores = all(text, STORE);
  if (stores.length > 1) throw new Error('存在多个批注存储区，请先处理同步冲突');
  if (!stores.length) { if (/^feishu-lite-comments:v/m.test(text)) throw new Error('批注存储区不完整，原文已保留'); return {body:text,threads:[],storeFrom:text.length,storeTo:text.length,version:2}; }
- const s = stores[0], version = Number(s[1]), from = s.index!, to = from + s[0].length;
+ const s = stores[0], version = Number(s[1]), from = s.index, to = from + s[0].length;
  if (version !== 1 && version !== 2) throw new Error(`批注格式 v${version} 需要更新插件`);
  if (text.slice(to).trim()) throw new Error('批注存储区须位于文末，请先整理笔记');
  const threads: CommentThread[] = [];
@@ -106,9 +106,9 @@ export function locateComment(body: string, t: CommentThread): CommentAnchor {
   const marks = all(body,BLOCK_MARKER).filter(m => m[1] === t.anchor.blockId);
   if (marks.length > 1) return detached('段落锚点被重复复制，请重新关联');
   if (marks.length === 1) {
-   const p = commentParagraphs(body).find(p => marks[0].index! >= p.from && marks[0].index! < p.to);
+   const p = commentParagraphs(body).find(p => marks[0].index >= p.from && marks[0].index < p.to);
    if (!p) return detached('段落结构已变化，请重新关联');
-   const end = marks[0].index!, hits = quoteHits(body,t,p.from,end);
+   const end = marks[0].index, hits = quoteHits(body,t,p.from,end);
    if (hits.length === 1) return {from:hits[0],to:hits[0]+t.anchor.quote.length,state:'attached',exact:true};
    if (end <= p.from || !body.slice(p.from,end).trim()) return detached('原段落已删除');
    return {from:p.from,to:end,state:'attached',exact:false,reason:'原文已变化，已定位到原段落'};
@@ -123,7 +123,7 @@ export function locateComment(body: string, t: CommentThread): CommentAnchor {
 function cleanUnusedBlocks(body: string, threads: CommentThread[]): string {
  const used = new Set(threads.map(t => t.anchor.blockId));
  body=body.replace(STANDALONE_BLOCK,line => { const marks=all(line,BLOCK_MARKER).filter(m => used.has(m[1])); return marks.length ? marks.map(m => `%%fl-block:${m[1]}%%`).join(' ')+(line.endsWith('\r\n')?'\r\n':line.endsWith('\n')?'\n':'') : ''; });
- return body.replace(BLOCK_MARKER,(s,id) => used.has(id) ? s : '');
+ return body.replace(BLOCK_MARKER,(s: string,id: string) => used.has(id) ? s : '');
 }
 function attach(d: CommentDocument, t: CommentThread, from: number, to: number): void {
  const p = assertCommentSelection(d.body,from,to), markers = all(p.text,BLOCK_MARKER);
@@ -152,7 +152,7 @@ export function deleteComment(text: string, id: string): string {
 export function reanchorComment(text: string, id: string, from: number, to: number): string {
  const d = parseComments(text), t = d.threads.find(t => t.id === id); if (!t) throw new Error('批注已不存在');
  const tokens = [marker(id),marker(id,true)];
- const removedBefore = (pos: number) => all(d.body,COMMENT_MARKER).filter(m => tokens.includes(m[0]) && m.index! < pos).reduce((n,m) => n + Math.min(m[0].length,pos-m.index!),0);
+ const removedBefore = (pos: number) => all(d.body,COMMENT_MARKER).filter(m => tokens.includes(m[0]) && m.index < pos).reduce((n,m) => n + Math.min(m[0].length,pos-m.index),0);
  const a = from-removedBefore(from), b = to-removedBefore(to); d.body = d.body.split(tokens[0]).join('').split(tokens[1]).join('');
  attach(d,t,a,b); t.updated = new Date().toISOString(); return writeComments(cleanUnusedBlocks(d.body,d.threads),d.threads);
 }

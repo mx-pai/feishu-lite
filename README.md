@@ -68,7 +68,7 @@ Lark-doc-style editing for Obsidian: annotations, image layout & crop-annotate, 
 - **社区页面 / Community page**：[community.obsidian.md/plugins/feishu-lite](https://community.obsidian.md/plugins/feishu-lite) — 一键 Add to Obsidian / one-click install
 - **手动 / Manual**：从 [Releases](https://github.com/mx-pai/feishu-lite/releases) 下载 `main.js`、`manifest.json`、`styles.css`，放入 `<vault>/.obsidian/plugins/feishu-lite/` 后启用 / download from Releases into `<vault>/.obsidian/plugins/feishu-lite/`, then enable
 
-Requires Obsidian 1.6.6+ · MIT License
+Requires Obsidian 1.7.2+ · MIT License
 
 ## 开发 / Development
 

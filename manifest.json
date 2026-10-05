@@ -1,8 +1,8 @@
 {
 	"id": "feishu-lite",
 	"name": "Feishu Lite",
-	"version": "0.2.8",
-	"minAppVersion": "1.6.6",
+	"version": "0.2.9",
+	"minAppVersion": "1.7.2",
 	"description": "飞书文档风格的 Obsidian 编辑体验：笔记批注、图片排版与裁剪标注、斜杠菜单、图片分栏、粘贴自动命名、彩色高亮、表格 / 列表增强、代码块行号与浮动目录。Lark-doc-style editing for Obsidian.",
 	"author": "mxpai",
 	"authorUrl": "https://github.com/mx-pai",

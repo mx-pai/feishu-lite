@@ -19,11 +19,11 @@ export function drawShape(ctx: CanvasRenderingContext2D, shape: ImageShape): voi
  ctx.restore();
 }
 export function renderProject(image: CanvasImageSource, project: ImageProject, doc: Document = document): HTMLCanvasElement {
- validateProject(project); const canvas=doc.createElement('canvas'), c=project.crop; canvas.width=c.width; canvas.height=c.height;
+ validateProject(project); const canvas=doc.win.createEl('canvas'), c=project.crop; canvas.width=c.width; canvas.height=c.height;
  const ctx=canvas.getContext('2d'); if (!ctx) throw new Error('当前设备无法创建图片画布');
  ctx.translate(-c.x,-c.y); ctx.drawImage(image,0,0,project.width,project.height); for (const shape of project.shapes) drawShape(ctx,shape); return canvas;
 }
-const clone = (p: ImageProject): ImageProject => JSON.parse(JSON.stringify(p));
+const clone = (p: ImageProject): ImageProject => JSON.parse(JSON.stringify(p)) as ImageProject;
 export class ImageEditorModal extends Modal {
  private project!: ImageProject; private image!: HTMLImageElement; private canvas!: HTMLCanvasElement; private status!: HTMLElement;
  private tool: ImageShape['kind']|'crop'|'select' = 'crop'; private color='#ff453a'; private width=5; private fontSize=32;

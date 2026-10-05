@@ -67,7 +67,7 @@ export async function recoverTransfers(app: App): Promise<number> {
 	if (!await app.vault.adapter.exists(JOURNALS)) return 0;
 	const entries = await app.vault.adapter.list(JOURNALS); let count = 0;
 	for (const path of entries.files.filter(p => p.endsWith(".json"))) {
-		const p: NoteTransfer = JSON.parse(await app.vault.adapter.read(path));
+		const p = JSON.parse(await app.vault.adapter.read(path)) as NoteTransfer;
 		if (p.version !== 1 || !/^[a-z0-9-]+$/.test(p.id) || [p.sourcePath, p.targetPath].some(s => typeof s !== "string" || !s.endsWith(".md") || s.startsWith(".") || s.includes("..")) || [p.sourceBefore, p.targetBefore, p.sourceAfter, p.targetAfter].some(s => typeof s !== "string")) throw new Error("迁移恢复记录无效，已保留原文件");
 		await commitTransfer(app, p, path); count++;
 	}

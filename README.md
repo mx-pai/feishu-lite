@@ -2,11 +2,31 @@
 
 **飞书文档风格的 Obsidian 编辑体验** —— 笔记批注、图片排版与裁剪标注、斜杠菜单、粘贴自动命名、彩色高亮、表格 / 列表增强、浮动目录。
 
-Lark-doc-style editing for Obsidian: slash menu, image grids, paste auto-rename, colored highlights, and more.
+Feishu-doc-style editing for Obsidian: note annotations, image layout & crop-annotate, slash menu, image grids, paste auto-rename, colored highlights, code line numbers, and more.
+
+## 截图
+
+**笔记批注** —— 划词新建批注线程，支持回复、解决 / 重新打开；正文标记与侧栏面板，数据保存在笔记内
+
+![批注：正文标记与徽标](docs/img/comments.png)
+
+<img src="docs/img/comments-panel.png" alt="批注面板：待处理 / 已解决、原文、解决、重新关联、移动" width="440">
+
+**代码块行号** —— 语言徽标、行号与复制按钮
+
+![代码块：语言徽标、行号与复制](docs/img/code-block.png)
+
+**图片分栏** —— `img-2/3/4` 网格，多图粘贴自动成栏
+
+![图片分栏：img-3 网格](docs/img/image-grid.png)
+
+**彩色高亮** —— `=={red}文字==` 七色，划词工具条一键套用
+
+![彩色高亮：七种颜色](docs/img/highlights.png)
 
 ## 功能亮点
 
-- **笔记批注** — 划词工具条新建，正文标记展开；回复、解决 / 重新打开、重新关联、跨笔记移动、搜索与导出；桌面侧栏、手机底部弹层，数据保存在笔记内
+- **笔记批注** — 划词工具条新建，正文标记展开；回复、解决 / 重新打开、重新关联、跨笔记移动、搜索与导出；桌面侧栏、手机底部弹层，数据保存在笔记内；实现说明见 [批注与图片编辑架构](docs/annotations-and-images.md)
 - **图片工具条** — 拖边缘缩放、点一下居中、就地写图注；右键提供精确宽度、完整对齐、图文并排、分栏换位、查看、替换和裁剪标注
 - **图片裁剪与标注** — 裁剪、完整实心箭头、方框、画笔、文字、选择移动 / 删除、撤销 / 重做；箭头按预览笔宽绘制，保存新 PNG 并保留原图和可编辑项目
 - **斜杠菜单** — 行首 `/`，中文 / 英文 / 拼音匹配；参数化命令双栏级联，回车即用
@@ -33,14 +53,6 @@ Lark-doc-style editing for Obsidian: slash menu, image grids, paste auto-rename,
 - **Image lightbox** — choose View Image in the context menu: wheel scaling, drag to pan, Esc / click-outside to close (reading & editing views)
 - **Floating outline** — hover-to-expand rail on the right edge, scroll-following highlight, click to jump
 - **Also included** — Mermaid snippets, CJK–Latin spacing, reading position memory, attachment cleanup, index-page automation
-
-## 批注和图片的日常使用
-
-选中段落内的一句话，点划词工具条里的「批注」写评论，点击正文标记展开线程。命令面板中的「批注：查看当前笔记全部批注」打开整篇笔记的面板，重新关联后选择新的原文，再点工具条完成关联。跨笔记移动可以选择已有段落或追加原文摘录，来源正文保留。
-
-点击图片后，选中期间保持显示缩放柄，拖动四角或两侧调整尺寸，松手保存并保留选中状态，可连续缩小、放大。重复点击同一张图片保留现有控件。点击正文、关闭按钮或按 Escape 收起控件。整圈边框在拖动时显示，静止时收起，原生缩放角在使用插件控件期间让位。小工具条提供「居中」和就地图注输入，图注回车或离开输入框保存，Escape 取消尚未保存的图注。独占一行的图片在原生 Live Preview 中按正文行的宽度对齐，阅读模式保留相同设置。右键图片提供精确宽度、左中右对齐、图文并排、图片分栏、查看、替换、裁剪标注及恢复尺寸；图文块额外提供旁边文字编辑，分栏额外提供前后换位。旁边文字也可在原生编辑器中直接编辑。打开弹窗时收起工具条与缩放柄，裁剪与标注保存新图片并持续保留原图。
-
-批注跟随 `.md` 文件同步，图片编辑项目为图片旁的 `.fl-edit.json`，手机需同步并启用相同版本插件。Git 发生冲突时需先处理冲突再修改批注。设计与验证范围见 [批注与图片编辑架构](docs/annotations-and-images.md)。
 
 ## 安装 / Installation
 

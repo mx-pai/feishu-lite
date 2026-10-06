@@ -21,8 +21,7 @@ export function openLightbox(src: string, alt: string, ownerDoc?: Document): voi
 	const overlay = doc.win.createDiv({ cls: "fl-lightbox" });
 	doc.body.appendChild(overlay);
 	// 浮层自己持有焦点：打开后打字 / 退格不再落到浮层背后的编辑器（E1）
-	overlay.tabIndex = -1;
-	overlay.style.outline = "none"; // 程序化聚焦，不引入多余焦点圈
+	overlay.tabIndex = -1; // 程序化聚焦，不引入多余焦点圈；outline 抑制见 styles.css 的 .fl-lightbox
 	// 记下打开前的焦点，关闭时还原（编辑视图里光标回到原处）
 	const before = doc.activeElement as HTMLElement | null;
 

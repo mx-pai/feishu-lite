@@ -975,6 +975,7 @@ body.is-mobile .fl-toc-hide {
 	display: flex;
 	overflow: auto;
 	cursor: zoom-out;
+	outline: none; /* 程序化聚焦（tabIndex=-1）不引入焦点圈 */
 	background: color-mix(in srgb, var(--background-primary) 78%, #000);
 }
 .fl-lightbox-img {

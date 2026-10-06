@@ -593,6 +593,11 @@ body.fl-hide-empty-hint .fl-col-empty {
 .fl-code-wrap:hover .fl-code-actions {
 	opacity: 1;
 }
+/* 系统自带复制按钮（新版 Obsidian）钉在 pre 右上角（6px 边距 + 图标宽），
+   徽标容器左移让位，避免悬停时叠在原生按钮上 */
+.fl-code-wrap.fl-has-native-copy .fl-code-actions {
+	right: 46px;
+}
 .fl-code-lang {
 	font-size: var(--font-ui-smaller);
 	color: var(--text-faint);
@@ -740,6 +745,34 @@ body.fl-table-pretty .markdown-rendered table tbody tr:hover {
 	background: var(--background-modifier-hover);
 	box-shadow: inset 2px 0 0 var(--interactive-accent);
 }
+/* 折叠箭头：有子级的条目前 ▾ / 已折叠 ▸（点箭头只折叠这一支，不跳转）；
+   无子级渲染隐身占位，保证所有条目的文本列对齐（字符由 CSS 画，状态只需切 class） */
+.fl-toc-fold {
+	display: inline-block;
+	width: 14px;
+	text-align: center;
+	font-size: 9px;
+	color: var(--text-faint);
+	cursor: pointer;
+	user-select: none;
+}
+.fl-toc-fold::before {
+	content: "▾";
+}
+.fl-toc-item.is-folded > .fl-toc-fold::before {
+	content: "▸";
+}
+.fl-toc-fold.is-leaf {
+	visibility: hidden;
+	pointer-events: none;
+}
+.fl-toc-item:hover > .fl-toc-fold {
+	color: var(--text-normal);
+}
+/* 被折叠分支里的后代条目：整行隐藏（含其箭头与子级） */
+.fl-toc-item.is-hidden {
+	display: none;
+}
 .fl-toc-empty {
 	padding: 8px;
 	color: var(--text-faint);
@@ -752,6 +785,10 @@ body.fl-table-pretty .markdown-rendered table tbody tr:hover {
 .fl-toc:not(.is-open) .fl-toc-list {
 	padding: 10px 0;
 	scrollbar-width: none;
+}
+/* 收起态横杠里不放箭头：item 已缩到 8px 宽，14px 的箭头会撑破 */
+.fl-toc:not(.is-open) .fl-toc-fold {
+	display: none;
 }
 .fl-toc:not(.is-open) .fl-toc-item {
 	width: 8px;
@@ -773,6 +810,62 @@ body.fl-table-pretty .markdown-rendered table tbody tr:hover {
 }
 .fl-toc:not(.is-open) .fl-toc-empty {
 	display: none;
+}
+
+/* ---- 移动端（body.is-mobile，与 Platform.isMobile 同步）：收起态 = 圆形悬浮按钮 ---- */
+/* 触摸端没有真 hover：点按悬浮按钮展开完整卡片，点面板外 / 跳转后自动收起（toc.ts 控制） */
+.fl-toc-fab {
+	display: none; /* 桌面不显示；移动端收起态由下方规则点亮 */
+}
+body.is-mobile .fl-toc {
+	right: 12px; /* 离屏幕右缘稍远，避开系统边缘返回手势区 */
+}
+body.is-mobile .fl-toc:not(.is-open) {
+	width: 40px;
+	height: 40px;
+	border-radius: 50%;
+	justify-content: center;
+	align-items: center;
+}
+body.is-mobile .fl-toc:not(.is-open) .fl-toc-fab {
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	width: 100%;
+	height: 100%;
+	padding: 0;
+	margin: 0;
+	background: transparent;
+	border: none;
+	box-shadow: none;
+	color: var(--text-muted);
+	cursor: pointer;
+}
+body.is-mobile .fl-toc-fab::before {
+	content: "";
+	width: 15px;
+	height: 2px;
+	border-radius: 1px;
+	background: currentColor;
+	box-shadow: 0 -5px 0 currentColor, 0 5px 0 currentColor; /* ≡ 三根横线 */
+}
+body.is-mobile .fl-toc:not(.is-open) .fl-toc-list {
+	display: none; /* 收起态不显示横杠列表，只留悬浮按钮 */
+}
+body.is-mobile .fl-toc.is-open {
+	width: min(78vw, 280px);
+	max-height: 62vh;
+}
+body.is-mobile .fl-toc.is-open .fl-toc-item {
+	padding: 8px 10px 8px calc(10px + var(--fl-item-indent, 0px)); /* 触摸行高 ~34px */
+	font-size: var(--font-ui-small);
+}
+body.is-mobile .fl-toc.is-open .fl-toc-fold {
+	width: 22px; /* 箭头触摸目标加大 */
+	font-size: 11px;
+}
+body.is-mobile .fl-toc-hide {
+	padding: 4px 10px; /* 收起按钮触摸目标加大 */
 }
 
 /* ================= 划词工具条（选中文字浮现：高亮换色 / 行内代码） ================= */

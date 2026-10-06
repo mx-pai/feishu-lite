@@ -4,6 +4,35 @@ import { SLASH_ITEMS, SlashItem } from "./slash-items";
 import { openSlashCascade } from "./cascade";
 
 /**
+ * 斜杠菜单是否处于「代码 / 元数据」上下文（处于其中则不该触发）：
+ * - 围栏代码块：向上数未闭合的 ``` / ~~~（与 cjk-space / wrap-core 同一套判定）
+ * - 行内代码：斜杠之前有奇数个反引号
+ * - YAML 前置元数据：首行 --- 起、且存在闭合 --- / ... 行，斜杠在两者之间
+ */
+function inCodeContext(editor: Editor, line: number, ch: number): boolean {
+	if ((editor.getLine(line).slice(0, ch).match(/`/g) ?? []).length % 2 === 1) return true;
+	let inFence = false;
+	let fenceChar = "";
+	for (let i = 0; i < line; i++) {
+		const fm = /^\s*(```+|~~~+)/.exec(editor.getLine(i));
+		if (!fm) continue;
+		const c = fm[1]?.charAt(0) ?? "";
+		if (!inFence) {
+			inFence = true;
+			fenceChar = c;
+		} else if (c === fenceChar) {
+			inFence = false;
+		}
+	}
+	if (inFence) return true;
+	if (editor.getLine(0).trim() !== "---") return false; // 前置元数据必须在文档第一行
+	for (let i = 1; i <= editor.lastLine(); i++) {
+		if (/^(---|\.\.\.)\s*$/.test(editor.getLine(i))) return line > 0 && line < i;
+	}
+	return false;
+}
+
+/**
  * 飞书式斜杠菜单：行首（或列表项开头）输入 / 唤起。
  * 支持中文 / 英文 / 拼音全称 / 拼音缩写匹配（如 glk = 高亮块）。
  */
@@ -23,6 +52,8 @@ export class SlashSuggest extends EditorSuggest<SlashItem> {
 		// 仅当 / 是行首第一个非空字符（可带缩进或列表符号）时触发，避免误伤 URL / 路径 / 日期
 		const m = /^(\s*(?:[-*+]\s+|\d+[.)]\s+)?)\/([^\s/]*)$/.exec(before);
 		if (!m) return null;
+		// 代码块 / 行内代码 / 前置元数据里不弹斜杠菜单（否则 Enter 会把命令内容插进代码）
+		if (inCodeContext(editor, cursor.line, m[1].length)) return null;
 		const start: EditorPosition = { line: cursor.line, ch: m[1].length };
 		return { start, end: cursor, query: m[2] };
 	}

@@ -2,8 +2,10 @@ import { MarkdownPostProcessorContext } from "obsidian";
 import type FeishuLitePlugin from "./main";
 
 /**
- * 阅读视图代码块美化：语言徽标 + 一键复制 + 行号（≥4 行时）
+ * 阅读视图代码块美化：语言徽标 + 行号（≥4 行时）+ 复制按钮（仅系统未自带时兜底）
  * - 只在阅读视图生效（编辑视图的代码块由 Obsidian 编辑器渲染，不插手）
+ * - 复制：新版 Obsidian 自带 pre > button.copy-code-button；检测到就让位（只留徽标并左移避让），
+ *   检测不到才落兜底按钮并延后一拍复查（不依赖双方 post-processor 的注册顺序）
  * - 行号用独立 gutter 叠在 pre 左侧的内边距区，不触碰 code 内部，语法高亮不受影响
  */
 
@@ -24,19 +26,39 @@ export function codePrettyPostProcessor(
 		pre.parentElement?.insertBefore(wrap, pre);
 		wrap.appendChild(pre);
 
-		// 语言徽标 + 复制按钮（悬停显现）
+		// 语言徽标（悬停显现）
 		const actions = wrap.createDiv({ cls: "fl-code-actions" });
 		const lang = /language-([\w+.-]+)/.exec(codeEl.className)?.[1];
 		if (lang) actions.createSpan({ cls: "fl-code-lang", text: lang });
-		const btn = actions.createEl("button", { cls: "fl-code-copy", text: "复制" });
-		btn.setAttribute("type", "button");
 
+		// 复制按钮：新版 Obsidian 阅读视图自带（内置 post-processor 往 pre 里插
+		// button.copy-code-button）；系统已提供时不再重复注入，仅让徽标左移避让。
+		// 同步检查已能命中常规场景（内置先于插件注册），延后一拍复查兜底离屏 / 未出帧场景，
+		// 不依赖双方 post-processor 的执行顺序——与 syncGutter 的重试策略一致。
+		const hasNativeCopy = (): boolean => !!pre.querySelector(".copy-code-button");
 		const source = (codeEl.textContent ?? "").replace(/\n+$/, "");
-		btn.onclick = (ev) => {
-			ev.preventDefault();
-			ev.stopPropagation();
-			void copyText(source, btn);
-		};
+		if (hasNativeCopy()) {
+			wrap.addClass("fl-has-native-copy");
+		} else {
+			let settled = false;
+			const placeCopyButton = (): void => {
+				if (settled) return;
+				settled = true;
+				if (hasNativeCopy()) {
+					wrap.addClass("fl-has-native-copy");
+					return;
+				}
+				const btn = actions.createEl("button", { cls: "fl-code-copy", text: "复制" });
+				btn.setAttribute("type", "button");
+				btn.onclick = (ev) => {
+					ev.preventDefault();
+					ev.stopPropagation();
+					void copyText(source, btn);
+				};
+			};
+			window.requestAnimationFrame(() => window.requestAnimationFrame(placeCopyButton));
+			window.setTimeout(placeCopyButton, 350);
+		}
 
 		// 行号：4 行起步才显示，避免小片段被数字噪音打扰
 		const lineCount = source ? source.split("\n").length : 0;

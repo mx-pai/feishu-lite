@@ -30,12 +30,21 @@ function spaceLine(line: string): string {
 		.join("");
 }
 
-/** 文档级美化：跳过 ``` / ~~~ 围栏内的内容（围栏线本身也不动） */
+/** 文档级美化：跳过 frontmatter、``` / ~~~ 围栏、4 空格或 Tab 缩进的代码行、引用式链接定义 */
 export function beautifyMixedText(text: string): string {
 	const lines = text.split("\n");
 	let inFence = false;
 	let fenceChar = "";
-	const out = lines.map((line) => {
+	// frontmatter 区段：首行 --- 且后方确有闭合行时才认（避免把正文开头的分隔线当成属性区）
+	const frontEnd = /^(?:\uFEFF)?---\s*$/.test(lines[0] ?? "")
+		? lines.findIndex((line, index) => index > 0 && /^(?:---|\.\.\.)\s*$/.test(line))
+		: -1;
+	let inFront = frontEnd > 0;
+	const out = lines.map((line, index) => {
+		if (inFront) {
+			if (index >= frontEnd) inFront = false;
+			return line;
+		}
 		const m = /^\s*(```+|~~~+)/.exec(line);
 		if (m) {
 			const ch = m[1]?.charAt(0) ?? "";
@@ -48,6 +57,8 @@ export function beautifyMixedText(text: string): string {
 			return line;
 		}
 		if (inFence) return line;
+		if (/^(?: {4}|\t)/.test(line)) return line; // 缩进代码块
+		if (/^\s*\[[^\]]+\]:/.test(line)) return line; // 引用式链接定义，形如 [label]: url
 		return spaceLine(line);
 	});
 	return out.join("\n");
@@ -115,6 +126,7 @@ export function registerCjkPaste(plugin: FeishuLitePlugin): void {
 			if (!plugin.settings.cjkPaste) return;
 			const cd = evt.clipboardData;
 			if (!cd || (cd.files && cd.files.length > 0)) return; // 图片/文件粘贴交给图片模块
+			if (Array.from(cd.types ?? []).includes("text/html")) return; // 富文本粘贴让位给 Obsidian 原生处理，避免被降级为纯文本
 			const text = cd.getData("text/plain");
 			if (!text) return;
 			if (cursorInFence(editor)) return;

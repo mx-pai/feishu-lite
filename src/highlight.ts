@@ -3,6 +3,7 @@ import type { ViewUpdate } from "@codemirror/view";
 import { Editor, MarkdownPostProcessorContext, Notice } from "obsidian";
 import type FeishuLitePlugin from "./main";
 import { openCascade } from "./cascade";
+import { buildWrapSpec } from "./wrap-core";
 import type { ListOption } from "./util";
 
 /**
@@ -48,9 +49,13 @@ export function wrapHighlight(editor: Editor, color: string): void {
 		editor.replaceSelection(`${open}文字==`);
 		const wordStart = from.ch + open.length; // 跳过 "==" 或 "=={color}"
 		editor.setSelection({ line: from.line, ch: wordStart }, { line: from.line, ch: wordStart + 2 });
-	} else {
-		editor.replaceSelection(`${open}${editor.getSelection()}==`);
+		return;
 	}
+	// 与划词工具条走同一条通道（wrap-core）：先剥壳再重包，换色不会写出嵌套标记
+	const cm = (editor as unknown as { cm?: EditorView }).cm;
+	const spec = cm ? buildWrapSpec(cm.state, open, "==") : null;
+	if (cm && spec) cm.dispatch(spec);
+	else editor.replaceSelection(`${open}${editor.getSelection()}==`); // 兜底：拿不到 CM 视图时沿用旧行为
 }
 
 /** 阅读视图渲染 */

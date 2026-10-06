@@ -6,13 +6,14 @@ import { Decoration, EditorView, ViewPlugin, WidgetType } from '@codemirror/view
 import type { DecorationSet } from '@codemirror/view';
 import type FeishuLitePlugin from './main';
 import { addComment, assertCommentSelection, BLOCK_MARKER, COMMENT_MARKER, commentId, commentParagraphs, deleteComment, exportComments, locateComment, parseComments, planCommentMove, reanchorComment, stripCommentMarkers, updateThread } from './comment-core';
-import type { CommentMessage, CommentThread } from './comment-core';
+import type { CommentAnchor, CommentDocument, CommentMessage, CommentThread, Paragraph } from './comment-core';
 import { action, ChoiceDialog, ConfirmDialog, FileDialog, reportError, TextDialog } from './dialogs';
 import { assertSnapshot, commitTransfer, editNote, readNote, recoverTransfers } from './note-edit';
 import { sanitizeFileName } from './util';
 
 const VIEW = 'feishu-lite-comments';
 type RenderScope = Pick<MarkdownPostProcessorContext,'sourcePath'|'getSectionInfo'>;
+interface LoadedComments { text: string; doc: CommentDocument; file: TFile }
 export class CommentsController {
  file: TFile | null = null;
  focusedId = '';
@@ -48,7 +49,7 @@ export class CommentsController {
   return ViewPlugin.fromClass(class {
    private observer:MutationObserver; private timer:number|null=null; private destroyed=false; private owned=new Set<HTMLElement>();
    private click=(event:MouseEvent) => { if (!this.view.state.selection.main.empty || event.button !== 0) return; const target=(event.target as HTMLElement)?.closest<HTMLElement>('[data-fl-thread]'), file=this.view.state.field(editorInfoField,false)?.file; if (target?.dataset.flThread && file) { event.preventDefault(); void controller.open(file,target.dataset.flThread).catch(reportError); } };
-   private bootstrap=() => { if (this.destroyed) return; const file=this.view.state.field(editorInfoField,false)?.file; if (!file) return; for (const el of Array.from(this.view.dom.querySelectorAll<HTMLElement>('.cm-embed-block .markdown-rendered'))) if (!controller.roots.has(el)) { this.owned.add(el); controller.addRoot(el,{sourcePath:file.path,getSectionInfo:() => null}); } };
+   private bootstrap=() => { if (this.destroyed) return; for (const el of Array.from(this.owned)) if (!el.isConnected) { this.owned.delete(el); controller.removeRoot(el); } const file=this.view.state.field(editorInfoField,false)?.file; if (!file) return; for (const el of Array.from(this.view.dom.querySelectorAll<HTMLElement>('.cm-embed-block .markdown-rendered'))) if (!controller.roots.has(el)) { this.owned.add(el); controller.addRoot(el,{sourcePath:file.path,getSectionInfo:() => null}); } };
    constructor(private view:EditorView) { this.observer=new MutationObserver(() => { if (this.timer !== null) window.clearTimeout(this.timer); this.timer=window.setTimeout(() => { this.timer=null; this.bootstrap(); },100); }); this.observer.observe(view.contentDOM,{childList:true,subtree:true}); view.contentDOM.addEventListener('click',this.click,true); queueMicrotask(this.bootstrap); }
    destroy(): void { this.destroyed=true; this.observer.disconnect(); this.view.contentDOM.removeEventListener('click',this.click,true); if (this.timer !== null) window.clearTimeout(this.timer); for (const el of this.owned) controller.removeRoot(el); }
   });
@@ -81,7 +82,7 @@ export class CommentsController {
  unmount(panel: CommentPanel): void { this.panels.delete(panel); }
  schedule(): void {
   if (this.timer !== null) window.clearTimeout(this.timer);
-  this.timer = window.setTimeout(() => { this.timer = null; for (const p of this.panels) void p.render(); for (const [el,ctx] of this.roots) void this.decorateReading(el,ctx).catch(reportError); },120);
+  this.timer = window.setTimeout(() => { this.timer = null; for (const p of this.panels) void p.render(); const preload = new Map<string,Promise<LoadedComments|null>>(); for (const [el,ctx] of this.roots) void this.decorateReading(el,ctx,preload).catch(reportError); },120);
  }
  addRoot(el: HTMLElement, ctx: RenderScope): void { this.roots.set(el,ctx); void this.decorateReading(el,ctx).catch(reportError); }
  removeRoot(el: HTMLElement): void { this.roots.delete(el); this.clearRoot(el); }
@@ -89,12 +90,18 @@ export class CommentsController {
   el.querySelectorAll('.fl-comment-badge').forEach(b => b.remove());
   el.querySelectorAll('mark.fl-comment-read').forEach(m => m.replaceWith(...Array.from(m.childNodes)));
  }
- private async decorateReading(el: HTMLElement, ctx: RenderScope): Promise<void> {
+ /** 同一批 schedule 内按 sourcePath 复用「读文件 + 解析批注」（多根 / 多窗格同文件只读一次） */
+ private loadComments(path: string, preload?: Map<string,Promise<LoadedComments|null>>): Promise<LoadedComments|null> {
+  let job = preload?.get(path); if (job) return job;
+  job = (async () => { const file = this.plugin.app.vault.getAbstractFileByPath(path); if (!(file instanceof TFile)) return null; const text = await readNote(this.plugin.app,file); try { return {text,doc:parseComments(text),file}; } catch { return null; } })();
+  if (!preload) return job;
+  preload.set(path,job); return job;
+ }
+ private async decorateReading(el: HTMLElement, ctx: RenderScope, preload?: Map<string,Promise<LoadedComments|null>>): Promise<void> {
   this.clearRoot(el); el.dataset.flCommentsSource = ctx.sourcePath;
   if (!this.plugin.settings.commentsEnabled) return;
-  const file = this.plugin.app.vault.getAbstractFileByPath(ctx.sourcePath); if (!(file instanceof TFile)) return;
-  const text = await readNote(this.plugin.app,file); let doc;
-  try { doc = parseComments(text); } catch { return; }
+  const loaded = await this.loadComments(ctx.sourcePath,preload); if (!loaded) return;
+  const {text,doc,file} = loaded;
   const section = ctx.getSectionInfo(el), editorRoot=el.closest<HTMLElement>('.cm-editor'), live=section || !editorRoot ? null : EditorView.findFromDOM(editorRoot);
   if (!section && !live) return;
   const lines = text.split('\n'); let start: number, end: number;
@@ -103,22 +110,47 @@ export class CommentsController {
   el.dataset.flSourceFrom = String(start); el.dataset.flSourceTo = String(end);
   const targets = Array.from(el.querySelectorAll<HTMLElement>('p,li,h1,h2,h3,h4,h5,h6'));
   if (el.matches('p,li,h1,h2,h3,h4,h5,h6')) targets.unshift(el);
+  const paragraphs = commentParagraphs(doc.body);
   for (const thread of doc.threads) {
-   const a = locateComment(doc.body,thread); if (a.state === 'detached' || a.from < start || a.from > end) continue;
+   const a = locateComment(doc.body,thread,paragraphs); if (a.state === 'detached' || a.from < start || a.from > end) continue;
    const quote = thread.anchor.quote.replace(/^\s*(?:#{1,6}\s|>\s|[-+*]\s)/,'');
    const matching = targets.filter(t => t.textContent?.includes(quote)).filter(t => !targets.some(child => child !== t && t.contains(child) && child.textContent?.includes(quote)));
    const target = matching.length === 1 ? matching[0] : el;
    if (a.exact && matching.length === 1 && quote) {
-    const walker = el.ownerDocument.createTreeWalker(target,NodeFilter.SHOW_TEXT); let node: Node | null;
-    while ((node = walker.nextNode())) {
-     if (node.parentElement?.closest('code,a,button,mark')) continue;
-     const index = node.textContent?.indexOf(quote) ?? -1;
-     if (index >= 0) { const range = el.ownerDocument.createRange(); range.setStart(node,index); range.setEnd(node,index+quote.length); const mark = el.ownerDocument.win.createEl('mark', { cls: 'fl-comment-read' + (thread.status === 'resolved' ? ' is-resolved' : '') }); mark.dataset.flThread=thread.id; mark.onclick=() => { void this.open(file,thread.id).catch(reportError); }; range.surroundContents(mark); break; }
-    }
+    // 优先按源码偏移映射（重复短语不会标错位置），文本对不上再回退首个匹配
+    const offset = CommentsController.quoteOffset(doc.body,paragraphs,a);
+    const range = (offset >= 0 ? CommentsController.rangeAtTextOffset(el.ownerDocument,target,offset,quote) : null) ?? CommentsController.rangeAtFirstHit(el.ownerDocument,target,quote);
+    if (range) { const mark = el.ownerDocument.win.createEl('mark', { cls: 'fl-comment-read' + (thread.status === 'resolved' ? ' is-resolved' : '') }); mark.dataset.flThread=thread.id; mark.onclick=() => { void this.open(file,thread.id).catch(reportError); }; range.surroundContents(mark); }
    }
    const button = action(target,thread.status === 'resolved' ? '✓' : '批注',() => this.open(file,thread.id),'fl-comment-badge');
    button.title = thread.messages[0].text; button.setAttribute('aria-label',`打开批注：${thread.messages[0].text}`);
   }
+ }
+ /** 引文相对所在段落起点的源码偏移（剥掉批注标记与 `#`/`>`/`-`/`1.` 前缀）；定位不到段落返回 -1 */
+ private static quoteOffset(body: string, paragraphs: Paragraph[], a: CommentAnchor): number {
+  const p = paragraphs.find(p => a.from >= p.from && a.to <= p.to); if (!p) return -1;
+  return stripCommentMarkers(body.slice(p.from,a.from)).replace(/^\s{0,3}(?:#{1,6}\s|>\s?|[-+*]\s|\d+[.)]\s)/,'').length;
+ }
+ /** 段落起点文本偏移 + 段内相对偏移 → DOM Range（TreeWalker 累计字符数）；该处文本不是引文时返回 null */
+ private static rangeAtTextOffset(doc: Document, target: HTMLElement, offset: number, quote: string): Range | null {
+  const walker = doc.createTreeWalker(target,NodeFilter.SHOW_TEXT); let node: Node | null, acc = 0;
+  while ((node = walker.nextNode())) {
+   if (node.parentElement?.closest('code,a,button,mark')) continue;
+   const text = node.textContent ?? '';
+   if (offset >= acc && offset + quote.length <= acc + text.length && text.startsWith(quote,offset-acc)) { const range = doc.createRange(); range.setStart(node,offset-acc); range.setEnd(node,offset-acc+quote.length); return range; }
+   acc += text.length;
+  }
+  return null;
+ }
+ /** 回退：target 内首个匹配引文的文本节点 */
+ private static rangeAtFirstHit(doc: Document, target: HTMLElement, quote: string): Range | null {
+  const walker = doc.createTreeWalker(target,NodeFilter.SHOW_TEXT); let node: Node | null;
+  while ((node = walker.nextNode())) {
+   if (node.parentElement?.closest('code,a,button,mark')) continue;
+   const index = node.textContent?.indexOf(quote) ?? -1;
+   if (index >= 0) { const range = doc.createRange(); range.setStart(node,index); range.setEnd(node,index+quote.length); return range; }
+  }
+  return null;
  }
  private decorations(state: EditorState): DecorationSet {
   if (!this.plugin.settings.commentsEnabled || state.field(editorLivePreviewField,false) !== true) return Decoration.none;
@@ -127,10 +159,10 @@ export class CommentsController {
   for (const re of [BLOCK_MARKER,COMMENT_MARKER]) for (const m of text.matchAll(new RegExp(re.source,'g'))) ranges.push(Decoration.replace({}).range(m.index,m.index+m[0].length));
   if (d.storeTo > d.storeFrom) ranges.push(Decoration.replace({block:true}).range(d.storeFrom,d.storeTo));
   const file = state.field(editorInfoField,false)?.file;
-  if (file) for (const t of d.threads) { const a = locateComment(d.body,t); if (a.state === 'detached') continue;
+  if (file) { const paragraphs = commentParagraphs(d.body); for (const t of d.threads) { const a = locateComment(d.body,t,paragraphs); if (a.state === 'detached') continue;
    if (a.exact && a.to > a.from) ranges.push(Decoration.mark({class:'fl-comment-text' + (t.status === 'resolved' ? ' is-resolved' : ''),attributes:{'data-fl-thread':t.id}}).range(a.from,a.to));
    ranges.push(Decoration.widget({widget:new CommentWidget(this,file,t.id,t.status),side:1}).range(a.to));
-  }
+  } }
   return Decoration.set(ranges,true);
  }
  async jump(file: TFile, thread: CommentThread): Promise<void> {
@@ -148,7 +180,7 @@ export class CommentsController {
   new FileDialog(this.plugin.app,f => f.extension === 'md' && f.path !== file.path,async target => {
    const sourceBefore = await readNote(this.plugin.app,file), targetBefore = await readNote(this.plugin.app,target), body = parseComments(targetBefore).body;
    const paragraphs = commentParagraphs(body).filter(p => stripCommentMarkers(p.text).trim());
-   const choices: {label:string;value:{from:number;to:number}|undefined}[] = [{label:'在文末附加原始摘录，并迁移批注',value:undefined}, ...paragraphs.map(p => ({label:stripCommentMarkers(p.text).slice(0,100),value:{from:p.from,to:p.from+stripCommentMarkers(p.text).length}}))];
+   const choices: {label:string;value:{from:number;to:number}|undefined}[] = [{label:'在文末附加原始摘录，并迁移批注',value:undefined}, ...paragraphs.map(p => ({label:stripCommentMarkers(p.text).slice(0,100),value:{from:p.from,to:p.to}}))];
    new ChoiceDialog(this.plugin.app,choices,async range => {
     const plan = planCommentMove(sourceBefore,targetBefore,thread.id,range);
     await commitTransfer(this.plugin.app,{version:1,id:commentId(),sourcePath:file.path,targetPath:target.path,sourceBefore,targetBefore,sourceAfter:plan.source,targetAfter:plan.target});
@@ -165,15 +197,16 @@ export class CommentsController {
  private registerReadingSelection(): void {
   let bar: HTMLElement | null = null, timer:number|null=null;
   const clear = () => { bar?.remove(); bar = null; };
-  const update = () => {
+  const update = (doc: Document) => {
    if (!this.plugin.settings.commentsEnabled) return;
-   const selection = document.getSelection(); if (!selection || selection.isCollapsed) { clear(); return; }
+   const selection = doc.getSelection(); if (!selection || selection.isCollapsed) { clear(); return; }
    const parent = selection.anchorNode?.parentElement, root = parent?.closest<HTMLElement>('[data-fl-comments-source]');
    if (!root || !root.closest('.markdown-reading-view,.markdown-preview-view,.cm-embed-block')) { clear(); return; }
    const quote = selection.toString().trim(); if (!quote) return;
    const path = root.dataset.flCommentsSource!, file = this.plugin.app.vault.getAbstractFileByPath(path); if (!(file instanceof TFile)) return;
-   clear(); bar = document.body.createDiv({cls:'fl-reading-comment-bar'});
-   const range = selection.getRangeAt(0).getBoundingClientRect(); bar.style.left = `${Math.max(8,Math.min(range.left,window.innerWidth-120))}px`; bar.style.top = `${Math.max(8,range.top-44)}px`;
+   const win = doc.defaultView ?? window;
+   clear(); bar = doc.body.createDiv({cls:'fl-reading-comment-bar'});
+   const range = selection.getRangeAt(0).getBoundingClientRect(); bar.style.left = `${Math.max(8,Math.min(range.left,win.innerWidth-120))}px`; bar.style.top = `${Math.max(8,range.top-44)}px`;
    const sourceFrom = Number(root.dataset.flSourceFrom), sourceTo = Number(root.dataset.flSourceTo);
    action(bar,this.pending?.path === path ? '关联批注' : '添加批注',async () => {
     const text = await readNote(this.plugin.app,file), body = parseComments(text).body, hits: number[] = [];
@@ -184,10 +217,17 @@ export class CommentsController {
    bar.addEventListener('mousedown',e => e.preventDefault());
    bar.addEventListener('pointerdown',e => e.preventDefault());
   };
-  this.plugin.registerDomEvent(document,'mouseup',update);
-  this.plugin.registerDomEvent(document,'selectionchange',() => { if (timer !== null) window.clearTimeout(timer); timer=window.setTimeout(() => { timer=null; update(); },100); });
-  this.plugin.registerDomEvent(document,'keydown',e => { if (e.key === 'Escape' && !e.isComposing) { clear(); this.pending = null; } });
-  this.plugin.registerDomEvent(document,'scroll',clear,true);
+  // 划词条可能落在弹出窗口里：按各自 document 注册监听、挂元素（对齐划词工具条的多窗口做法）
+  const bind = (doc: Document): void => {
+   this.plugin.registerDomEvent(doc,'mouseup',() => update(doc));
+   this.plugin.registerDomEvent(doc,'selectionchange',() => { if (timer !== null) window.clearTimeout(timer); timer=window.setTimeout(() => { timer=null; update(doc); },100); });
+   this.plugin.registerDomEvent(doc,'keydown',e => { if (e.key === 'Escape' && !e.isComposing) { clear(); this.pending = null; } });
+   this.plugin.registerDomEvent(doc,'scroll',clear,true);
+  };
+  const docs = new Set<Document>([document]);
+  this.plugin.app.workspace.iterateAllLeaves(leaf => { const doc = leaf.view?.containerEl?.ownerDocument; if (doc) docs.add(doc); });
+  for (const doc of docs) bind(doc);
+  this.plugin.registerEvent(this.plugin.app.workspace.on('window-open',(_win,win) => bind(win.document)));
   this.plugin.register(() => { clear(); if (timer !== null) window.clearTimeout(timer); });
  }
 }

@@ -1,4 +1,4 @@
-import { MarkdownView, TFile } from "obsidian";
+import { MarkdownView, Platform, TFile } from "obsidian";
 import type { HeadingCache } from "obsidian";
 import type FeishuLitePlugin from "./main";
 
@@ -18,6 +18,14 @@ import type FeishuLitePlugin from "./main";
  *   —— 文档滚到底、目标标题顶不到最上时，点击也有明确反馈
  * - 收起态 = 右缘窄轨（每条标题一根小横杠、当前章节点亮）：常驻也不遮正文；
  *   悬停 150ms 展开成完整卡片（延时避免鼠标路过误触），鼠标移开自动收起
+ * - 多级折叠：有子级的条目前带 ▸ / ▾ 箭头（点箭头只折叠这一支，不跳转）；折叠状态按
+ *   「标题稳定签名」（层级 + 文本，不含行号）记在内存 —— 编辑正文触发列表重建时不丢，
+ *   切换笔记 / 重开 Obsidian 重置；正文滚动进被折叠的分支时自动展开该分支并高亮
+ *   —— 折叠只是收起「不看的」，不会把「当前读到哪」藏起来
+ * - 移动端（Platform.isMobile）：收起态 = 右缘圆形悬浮按钮（触摸目标 40px），点按展开
+ *   完整卡片。触摸端没有真 hover —— tap 会补发 mouseenter→click 事件序列，旧逻辑会
+ *   「点一下直接跳转、面板还挂在那儿」，所以移动端完全不走悬停路径；点面板外、点条目
+ *   跳转后都会自动收起
  */
 
 interface CmLike {
@@ -40,6 +48,16 @@ interface TocState {
 	/** 钉住后首次采样到的顶部行号；null = 还没采样 */
 	pinnedTop: number | null;
 	items: HTMLElement[];
+	/** 树结构：每个标题的直接父级索引（-1 = 顶层）；与 headings / items 同序 */
+	parents: number[];
+	/** 每个标题的「折叠签名」（层级|清洗后文本[#重复序]）：折叠状态跨列表重建的稳定锚点 */
+	keys: string[];
+	/** 已折叠分支的签名集合（会话内记忆）；切换笔记 / 停用时清空 */
+	collapsed: Set<string>;
+	/** 折叠状态当前所属的笔记路径：切文件时清掉上一本的折叠状态 */
+	filePath: string | null;
+	/** 移动端：点面板外收起用的 document 级 pointerdown 监听（teardown 必须移除） */
+	docPointerHandler: ((ev: PointerEvent) => void) | null;
 	scrollBound: HTMLElement | null;
 	onScroll: (() => void) | null;
 	rafPending: boolean;
@@ -63,6 +81,11 @@ export function initToc(plugin: FeishuLitePlugin): void {
 		pinnedIdx: -1,
 		pinnedTop: null,
 		items: [],
+		parents: [],
+		keys: [],
+		collapsed: new Set<string>(),
+		filePath: null,
+		docPointerHandler: null,
 		scrollBound: null,
 		onScroll: null,
 		rafPending: false,
@@ -132,6 +155,9 @@ function setPanelOpen(open: boolean): void {
 		st.hoverTimer = null;
 	}
 	st.panel.toggleClass("is-open", open);
+	// 展开瞬间把列表定位到当前章节：收起态列表不可见时 scrollIntoView 不生效（移动端隐藏 /
+	// 桌面横杠态），这里补一次，展开即看到高亮所在位置
+	if (open) st.items[st.activeIdx]?.scrollIntoView({ block: "nearest" });
 }
 
 // ---------------- 面板 DOM ----------------
@@ -142,6 +168,17 @@ function ensurePanel(plugin: FeishuLitePlugin): void {
 	// 保险：清掉历史版本泄漏的残留面板（旧版卸载时未清理的 DOM），避免出现两个目录
 	st.view.containerEl.querySelectorAll(":scope > .fl-toc").forEach((el) => el.remove());
 	const panel = st.view.containerEl.createDiv({ cls: "fl-toc" });
+
+	// 移动端收起态 = 圆形悬浮按钮（触摸目标 40px，形态由 CSS 控制）：点按展开完整卡片。
+	// 桌面保持悬停窄轨，不渲染这个按钮
+	if (Platform.isMobile) {
+		const fab = panel.createEl("button", { cls: "fl-toc-fab" });
+		fab.setAttribute("aria-label", "展开目录");
+		fab.onclick = (ev) => {
+			ev.stopPropagation();
+			setPanelOpen(true);
+		};
+	}
 
 	const head = panel.createDiv({ cls: "fl-toc-head" });
 	head.addEventListener("mousedown", (ev) => ev.preventDefault()); // 点标题栏不抢编辑焦点
@@ -163,26 +200,43 @@ function ensurePanel(plugin: FeishuLitePlugin): void {
 		if (target.closest(".fl-toc-item")) ev.preventDefault();
 	});
 	listEl.addEventListener("click", (ev) => {
-		const item = (ev.target as HTMLElement).closest<HTMLElement>(".fl-toc-item");
+		const target = ev.target as HTMLElement;
+		const item = target.closest<HTMLElement>(".fl-toc-item");
 		if (!item) return;
-		jumpTo(parseInt(item.dataset.idx ?? "", 10));
+		const idx = parseInt(item.dataset.idx ?? "", 10);
+		// 点箭头 = 只折叠 / 展开这一支，不跳转（点条目其余部分才跳转）
+		if (target.closest(".fl-toc-fold")) {
+			toggleFold(idx);
+			return;
+		}
+		jumpTo(idx);
+		// 移动端：跳转后自动收起，把正文让出来（面板挡着小屏正文）
+		if (Platform.isMobile) setPanelOpen(false);
 	});
 
-	// 收起态 = 右缘一条窄轨；悬停一小会儿（150ms）再展开，避免鼠标路过误触发
-	panel.addEventListener("mouseenter", () => {
-		if (st.hoverTimer !== null) window.clearTimeout(st.hoverTimer);
-		st.hoverTimer = window.setTimeout(() => {
-			st.hoverTimer = null;
-			panel.addClass("is-open");
-		}, 150);
-	});
-	panel.addEventListener("mouseleave", () => {
-		if (st.hoverTimer !== null) {
-			window.clearTimeout(st.hoverTimer);
-			st.hoverTimer = null;
-		}
-		panel.removeClass("is-open");
-	});
+	// 桌面：收起态悬停一小会儿（150ms）再展开，避免鼠标路过误触发。
+	// 移动端：触摸没有真 hover —— tap 会「补发」mouseenter→click 事件序列（点横杠直接
+	// 跳转、面板随后自己弹开），所以完全不挂悬停事件；改由悬浮按钮点按 + 点面板外收起
+	if (Platform.isMobile) {
+		st.docPointerHandler = (ev: PointerEvent) => {
+			const el = st.panel;
+			if (!el || !el.hasClass("is-open")) return;
+			if (ev.target instanceof Node && el.contains(ev.target)) return;
+			setPanelOpen(false);
+		};
+		document.addEventListener("pointerdown", st.docPointerHandler, true);
+	} else {
+		panel.addEventListener("mouseenter", () => {
+			if (st.hoverTimer !== null) window.clearTimeout(st.hoverTimer);
+			st.hoverTimer = window.setTimeout(() => {
+				st.hoverTimer = null;
+				setPanelOpen(true);
+			}, 150);
+		});
+		panel.addEventListener("mouseleave", () => {
+			setPanelOpen(false);
+		});
+	}
 
 	st.panel = panel;
 	st.listEl = listEl;
@@ -198,6 +252,10 @@ function teardown(): void {
 		window.clearTimeout(st.hoverTimer);
 		st.hoverTimer = null;
 	}
+	if (st.docPointerHandler) {
+		document.removeEventListener("pointerdown", st.docPointerHandler, true);
+		st.docPointerHandler = null;
+	}
 	st.panel?.remove();
 	st.view = null;
 	st.panel = null;
@@ -209,6 +267,10 @@ function teardown(): void {
 	st.pinnedIdx = -1;
 	st.pinnedTop = null;
 	st.items = [];
+	st.parents = [];
+	st.keys = [];
+	st.collapsed.clear();
+	st.filePath = null;
 	st.scrollBound = null;
 	st.onScroll = null;
 }
@@ -218,7 +280,13 @@ function teardown(): void {
 function refreshHeadings(plugin: FeishuLitePlugin): void {
 	const st = state;
 	if (!st?.listEl || !st.view?.file) return;
-	const headings = plugin.app.metadataCache.getFileCache(st.view.file)?.headings ?? [];
+	const file = st.view.file;
+	// 切换笔记：折叠状态属于上一本，清掉（同一本内编辑正文导致的重建则保留）
+	if (st.filePath !== file.path) {
+		st.filePath = file.path;
+		st.collapsed.clear();
+	}
+	const headings = plugin.app.metadataCache.getFileCache(file)?.headings ?? [];
 	// 注意：空列表也要给出可区分的签名，否则无标题笔记会因 "" === 初始 sig 而跳过渲染
 	const sig = headings.length
 		? headings.map((h) => `${h.level}:${h.position.start.line}:${h.heading}`).join("|")
@@ -232,6 +300,19 @@ function refreshHeadings(plugin: FeishuLitePlugin): void {
 	st.pinnedIdx = -1;
 	st.pinnedTop = null;
 
+	// 树结构与折叠签名：parents[i] = i 的直接父级；keys[i] 不含行号 —— 编辑正文让行号
+	// 漂移时折叠状态依然对得上；同名同层级标题加 #n 序区分
+	st.parents = computeParents(headings.map((h) => h.level));
+	const occ = new Map<string, number>();
+	st.keys = headings.map((h) => {
+		const base = `${h.level}|${cleanHeading(h.heading)}`;
+		const n = occ.get(base) ?? 0;
+		occ.set(base, n + 1);
+		return n === 0 ? base : `${base}#${n}`;
+	});
+	const childCount = new Array<number>(headings.length).fill(0);
+	for (const p of st.parents) if (p >= 0) childCount[p] = (childCount[p] ?? 0) + 1;
+
 	st.listEl.empty();
 	if (!headings.length) {
 		st.listEl.createDiv({ cls: "fl-toc-empty", text: "（本篇没有标题）" });
@@ -243,21 +324,96 @@ function refreshHeadings(plugin: FeishuLitePlugin): void {
 		const item = st.listEl.createDiv({ cls: "fl-toc-item" });
 		item.dataset.idx = String(i);
 		item.style.setProperty("--fl-item-indent", `${(h.level - st.minLevel) * 12}px`);
+		// 折叠箭头：有子级才渲染成 ▸ / ▾（由 .has-children + .is-folded 经 CSS 驱动）；
+		// 无子级渲染隐身占位，让所有条目的文本列对齐
+		const foldEl = item.createSpan({ cls: "fl-toc-fold" });
+		if ((childCount[i] ?? 0) > 0) item.addClass("has-children");
+		else foldEl.addClass("is-leaf");
 		const text = cleanHeading(h.heading) || "（无标题）";
-		item.setText(text);
+		item.appendText(text);
 		item.setAttribute("title", text);
 		st.items.push(item);
 	}
+	applyFoldVisibility();
 	scheduleUpdate();
 }
 
-/** 标题文本去掉常见行内标记，只留纯文字 */
-function cleanHeading(raw: string): string {
+/** 标题文本去掉常见行内标记，只留纯文字（裸 ==...== 不处理：可能只是普通文字里的等号） */
+export function cleanHeading(raw: string): string {
 	return raw
 		.replace(/\[\[([^\]|]*\|)?([^\]]*)\]\]/g, "$2") // [[链接|别名]] → 别名
 		.replace(/[*_`~]/g, "")
-		.replace(/==\{?[a-z]*\}?/g, "")
+		.replace(/==\{[a-z]+\}([\s\S]*?)==/g, "$1") // =={red}文字== → 文字（成对时连闭标记一起去掉）
+		.replace(/==\{[a-z]+\}/g, "") // 未闭合的 =={red} 只去开标记
 		.trim();
+}
+
+// ---------------- 多级折叠 ----------------
+
+/**
+ * 目录树构造：返回每个标题的直接父级索引（-1 = 顶层）。
+ * 栈里保存「层级严格递增」的祖先链：新标题先把层级 >= 自己的全部弹出，栈顶即父级。
+ */
+export function computeParents(levels: number[]): number[] {
+	const parents: number[] = [];
+	const stack: number[] = [];
+	for (let i = 0; i < levels.length; i++) {
+		const level = levels[i] ?? 0;
+		while (stack.length && (levels[stack[stack.length - 1] ?? 0] ?? 0) >= level) stack.pop();
+		parents.push(stack.length ? stack[stack.length - 1] ?? -1 : -1);
+		stack.push(i);
+	}
+	return parents;
+}
+
+/**
+ * 折叠隐藏传播：hidden[i] = 任一严格祖先被折叠。
+ * parents[i] < i 恒成立（父级必然在前），单遍 DP 即可。
+ */
+export function computeHidden(parents: number[], folded: boolean[]): boolean[] {
+	const hidden: boolean[] = [];
+	for (let i = 0; i < parents.length; i++) {
+		const p = parents[i] ?? -1;
+		hidden.push(p >= 0 ? (hidden[p] ?? false) || (folded[p] ?? false) : false);
+	}
+	return hidden;
+}
+
+/** 点箭头：切换某支的折叠状态（不重建列表，只更新显隐与箭头方向） */
+function toggleFold(idx: number): void {
+	const st = state;
+	const key = st?.keys[idx];
+	if (!st || key === undefined) return;
+	if (st.collapsed.has(key)) st.collapsed.delete(key);
+	else st.collapsed.add(key);
+	applyFoldVisibility();
+}
+
+/** 把 collapsed 状态铺到 DOM：条目显隐 + 箭头方向（class 驱动，箭头字符由 CSS 画） */
+function applyFoldVisibility(): void {
+	const st = state;
+	if (!st) return;
+	const folded = st.keys.map((k) => st.collapsed.has(k));
+	const hidden = computeHidden(st.parents, folded);
+	for (let i = 0; i < st.items.length; i++) {
+		st.items[i]?.toggleClass("is-hidden", hidden[i] === true);
+		st.items[i]?.toggleClass("is-folded", folded[i] === true);
+	}
+}
+
+/** 章节变化时：若新章节在被折叠的分支里，自动展开该分支 —— 折叠不遮挡「当前读到哪」 */
+function ensureBranchExpanded(idx: number): void {
+	const st = state;
+	if (!st) return;
+	let changed = false;
+	for (let p = st.parents[idx] ?? -1; p >= 0; p = st.parents[p] ?? -1) {
+		const key = st.keys[p];
+		if (key !== undefined && st.collapsed.has(key)) {
+			st.collapsed.delete(key);
+			changed = true;
+		}
+	}
+	if (changed) applyFoldVisibility();
 }
 
 // ---------------- 滚动跟随 ----------------
@@ -381,6 +537,8 @@ function setActive(idx: number): void {
 	const st = state;
 	if (!st || idx === st.activeIdx) return; // 章节没变：不动 DOM
 	st.activeIdx = idx;
+	// 先保证这一支可见（在被折叠的分支里则自动展开），再上高亮 / 定位
+	ensureBranchExpanded(idx);
 	for (let i = 0; i < st.items.length; i++) {
 		st.items[i]?.toggleClass("is-active", i === idx);
 	}

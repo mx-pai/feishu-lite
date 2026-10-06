@@ -58,7 +58,16 @@ export function writeComments(body: string, threads: CommentThread[]): string {
  const records = [...threads].sort((a,b) => a.id.localeCompare(b.id)).map(safeCommentJson).join(eol);
  return body.replace(/[\r\n]*$/, '') + [eol + eol + '%%','feishu-lite-comments:v2',records,'/feishu-lite-comments','%%',''].join(eol);
 }
+/** 单条段落表缓存：同一份正文（字符串相等）反复定位时不再整篇重扫（光标移动/按键的高频路径） */
+let paragraphCache: { body: string; paragraphs: Paragraph[] } | null = null;
+
+/** 段落表。按 body 缓存，返回的数组视为只读（请勿原地修改）；正文变化后自动重建。 */
 export function commentParagraphs(body: string): Paragraph[] {
+ if (paragraphCache && paragraphCache.body === body) return paragraphCache.paragraphs;
+ const paragraphs = scanParagraphs(body); paragraphCache = { body, paragraphs }; return paragraphs;
+}
+
+function scanParagraphs(body: string): Paragraph[] {
  const lines = body.match(/[^\n]*(?:\n|$)/g)?.filter(Boolean) ?? [], out: Paragraph[] = [];
  let offset = 0, active: Paragraph | null = null, front = /^(?:\uFEFF)?---\r?\n/.test(body), fence = '', fenceLength = 0, hidden = false, math = false;
  const flush = () => { if (active) { active.text = body.slice(active.from, active.to); active.blockId = all(active.text,BLOCK_MARKER)[0]?.[1]; out.push(active); active = null; } };
@@ -101,12 +110,13 @@ function quoteHits(body: string, t: CommentThread, from: number, to: number): nu
  if (hits.length <= 1) return hits;
  return hits.filter(p => (!t.anchor.prefix || stripCommentMarkers(body.slice(Math.max(0,p-248),p)).endsWith(t.anchor.prefix)) && (!t.anchor.suffix || stripCommentMarkers(body.slice(p+q.length,p+q.length+248)).startsWith(t.anchor.suffix)));
 }
-export function locateComment(body: string, t: CommentThread): CommentAnchor {
+/** paragraphs 可传预计算的段落表（同一 body 上批量定位时只建一次），省略时按缓存取用 */
+export function locateComment(body: string, t: CommentThread, paragraphs?: Paragraph[]): CommentAnchor {
  if (t.anchor.blockId) {
   const marks = all(body,BLOCK_MARKER).filter(m => m[1] === t.anchor.blockId);
   if (marks.length > 1) return detached('段落锚点被重复复制，请重新关联');
   if (marks.length === 1) {
-   const p = commentParagraphs(body).find(p => marks[0].index >= p.from && marks[0].index < p.to);
+   const p = (paragraphs ?? commentParagraphs(body)).find(p => marks[0].index >= p.from && marks[0].index < p.to);
    if (!p) return detached('段落结构已变化，请重新关联');
    const end = marks[0].index, hits = quoteHits(body,t,p.from,end);
    if (hits.length === 1) return {from:hits[0],to:hits[0]+t.anchor.quote.length,state:'attached',exact:true};
@@ -117,7 +127,7 @@ export function locateComment(body: string, t: CommentThread): CommentAnchor {
   const start = marker(t.id), end = marker(t.id,true), a = body.split(start).length-1, b = body.split(end).length-1;
   if (a || b) { if (a !== 1 || b !== 1) return detached('旧锚点缺失或重复，请重新关联'); const from = body.indexOf(start)+start.length, to = body.indexOf(end); return to > from ? {from,to,state:'attached',exact:true} : detached('旧锚点顺序变化'); }
  }
- const paragraphs = commentParagraphs(body), hits = quoteHits(body,t,0,body.length).filter(p => paragraphs.some(b => p >= b.from && p+t.anchor.quote.length <= b.to));
+ const list = paragraphs ?? commentParagraphs(body), hits = quoteHits(body,t,0,body.length).filter(p => list.some(b => p >= b.from && p+t.anchor.quote.length <= b.to));
  return hits.length === 1 ? {from:hits[0],to:hits[0]+t.anchor.quote.length,state:'recovered',exact:true,reason:'根据原文恢复，可重新关联固定位置'} : detached(hits.length > 1 ? '原文有多个候选，请重新关联' : '原文已变化，请重新关联');
 }
 function cleanUnusedBlocks(body: string, threads: CommentThread[]): string {

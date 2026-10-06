@@ -13,15 +13,24 @@ import type FeishuLitePlugin from "./main";
 
 let closeCurrent: (() => void) | null = null;
 
-export function openLightbox(src: string, alt: string): void {
+export function openLightbox(src: string, alt: string, ownerDoc?: Document): void {
 	closeCurrent?.();
 
-	const doc = document;
-	const overlay = doc.body.createDiv({ cls: "fl-lightbox" });
+	// 弹出窗口（popout）里的图片属于它自己的 document：浮层、监听、焦点都跟着图片所在窗口走（E6）
+	const doc = ownerDoc ?? document;
+	const overlay = doc.win.createDiv({ cls: "fl-lightbox" });
+	doc.body.appendChild(overlay);
+	// 浮层自己持有焦点：打开后打字 / 退格不再落到浮层背后的编辑器（E1）
+	overlay.tabIndex = -1;
+	overlay.style.outline = "none"; // 程序化聚焦，不引入多余焦点圈
+	// 记下打开前的焦点，关闭时还原（编辑视图里光标回到原处）
+	const before = doc.activeElement as HTMLElement | null;
+
 	const img = overlay.createEl("img", { cls: "fl-lightbox-img" });
 	img.src = src;
 	if (alt) img.alt = alt;
 	overlay.createDiv({ cls: "fl-lightbox-hint", text: "滚轮缩放 · 拖拽平移 · 点击空白或 Esc 关闭" });
+	overlay.focus();
 
 	let baseW = 800;
 	let baseH = 600;
@@ -60,6 +69,12 @@ export function openLightbox(src: string, alt: string): void {
 		doc.removeEventListener("mousemove", onMove);
 		doc.removeEventListener("mouseup", onUp);
 		overlay.remove();
+		// 还原打开前的焦点：关掉灯箱后接着打字仍是原来那个光标（E1）
+		try {
+			if (before?.isConnected && typeof before.focus === "function") before.focus();
+		} catch {
+			/* 原焦点元素已不可恢复：忽略 */
+		}
 	}
 
 	function onKey(e: KeyboardEvent): void {
@@ -68,7 +83,11 @@ export function openLightbox(src: string, alt: string): void {
 			e.preventDefault();
 			e.stopPropagation();
 			close();
+			return;
 		}
+		// 除 Esc 外一律吞掉：浮层打开期间按键不落到浮层背后的编辑器（E1）
+		e.preventDefault();
+		e.stopPropagation();
 	}
 
 	function onWheel(e: WheelEvent): void {
@@ -92,7 +111,8 @@ export function openLightbox(src: string, alt: string): void {
 		if (e.button !== 0) return;
 		down = { x: e.clientX, y: e.clientY, sl: overlay.scrollLeft, st: overlay.scrollTop };
 		moved = false;
-		e.preventDefault(); // 禁掉图片原生拖拽
+		e.preventDefault(); // 禁掉图片原生拖拽（顺带取消了默认的焦点转移，这里手动补回来）
+		overlay.focus();
 	}
 
 	function onMove(e: MouseEvent): void {
@@ -124,25 +144,31 @@ export function openLightbox(src: string, alt: string): void {
 }
 
 export function registerLightbox(plugin: FeishuLitePlugin): void {
-	plugin.registerDomEvent(
-		document,
-		"click",
-		(e) => {
-			if (plugin.settings.imageTools) return;
-			if (!plugin.settings.imageLightbox) return;
-			const t = e.target;
-			if (!(t instanceof HTMLElement)) return;
-			const img = t.closest("img");
-			if (!img) return;
-			if (img.closest(".fl-lightbox")) return;
-			if (img.closest("a")) return; // 图片外还有链接 → 放行链接
-			if (!img.closest(".markdown-preview-view, .markdown-reading-view")) return; // 只在阅读视图接管
-			e.preventDefault();
-			e.stopPropagation();
-			openLightbox(img.src, img.alt);
-		},
-		true
-	);
+	// 主窗口 + 各弹出窗口分别绑定：弹窗阅读视图里的图片也能点开灯箱（E6）
+	const bind = (doc: Document) => {
+		plugin.registerDomEvent(
+			doc,
+			"click",
+			(e) => {
+				if (plugin.settings.imageTools) return;
+				if (!plugin.settings.imageLightbox) return;
+				// 不用 instanceof：弹窗 document 里的元素不属于主窗口的 HTMLElement
+				const t = e.target as HTMLElement | null;
+				if (!t?.closest) return;
+				const img = t.closest("img");
+				if (!img) return;
+				if (img.closest(".fl-lightbox")) return;
+				if (img.closest("a")) return; // 图片外还有链接 → 放行链接
+				if (!img.closest(".markdown-preview-view, .markdown-reading-view")) return; // 只在阅读视图接管
+				e.preventDefault();
+				e.stopPropagation();
+				openLightbox(img.src, img.alt, doc);
+			},
+			true
+		);
+	};
+	bind(document);
+	plugin.registerEvent(plugin.app.workspace.on("window-open", (_win, win) => bind(win.document)));
 
 	// 停用 / 卸载插件时收起灯箱：清掉浮层与挂在 document 上的监听，避免残留
 	plugin.register(() => closeCurrent?.());
@@ -162,15 +188,15 @@ export function lightboxEditorExtension(plugin: FeishuLitePlugin) {
 					if (e.button !== 0) return;
 					if (e.defaultPrevented) return; // 已有其它处理（如灯箱自身）
 					if (!plugin.settings.imageLightbox) return;
-					const t = e.target;
-					if (!(t instanceof HTMLElement)) return;
+					const t = e.target as HTMLElement | null;
+					if (!t?.closest) return;
 					const img = t.closest("img");
 					if (!img) return; // 只拦图片点击，其余事件原样放行
 					if (img.closest(".fl-src-thumb")) return;
 					if (img.closest("a")) return;
 					e.preventDefault();
 					e.stopPropagation(); // CM6 收不到这次 mousedown：光标不动、图片不翻源码
-					openLightbox(img.src, img.alt);
+					openLightbox(img.src, img.alt, img.ownerDocument);
 				};
 				// 原生捕获监听：渲染态 callout 等 widget 内的事件会被 CM6 判为「不属于编辑器」、
 				// 扩展事件处理器收不到；原生监听绕开该判定，分栏里的图片也能点开

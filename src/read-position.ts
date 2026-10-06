@@ -7,7 +7,7 @@ import type FeishuLitePlugin from "./main";
  * - 取/设位置都用 currentMode.getScroll()/applyScroll()：行号语义、阅读/编辑通用、
  *   不受阅读视图懒渲染影响（与浮动目录同一套机制）
  * - 只在阅读视图恢复：编辑视图的光标位置由 Obsidian 原生恢复，不抢
- * - 记录：滚动时实时进内存，1.2s 防抖落盘；切文件 / 退出时立即落盘
+ * - 记录：滚动时实时进内存，1.2s 防抖落盘（只写盘，不触发重渲染）；切文件 / 退出 / 重命名 / 删除时立即落盘
  */
 
 const MAX_ENTRIES = 400;
@@ -33,6 +33,27 @@ export function initReadPosition(plugin: FeishuLitePlugin): void {
 	plugin.registerEvent(plugin.app.workspace.on("active-leaf-change", () => rebind(plugin)));
 	plugin.registerEvent(plugin.app.workspace.on("layout-change", () => rebind(plugin)));
 	plugin.registerEvent(plugin.app.workspace.on("quit", () => flush(0)));
+
+	// 重命名 / 移动：把记录平移到新路径（文件夹重命名则平移其下所有记录），否则位置丢失
+	plugin.registerEvent(
+		plugin.app.vault.on("rename", (file, oldPath) => {
+			const moved = Object.entries(map).filter(([k]) => k === oldPath || k.startsWith(oldPath + "/"));
+			if (!moved.length) return;
+			for (const [key, line] of moved) {
+				delete map[key];
+				map[key === oldPath ? file.path : file.path + key.slice(oldPath.length)] = line;
+			}
+			flush(0);
+		})
+	);
+	// 删除：清掉对应记录，避免之后同路径的新笔记被拽到旧位置
+	plugin.registerEvent(
+		plugin.app.vault.on("delete", (file) => {
+			if (!(file.path in map)) return;
+			delete map[file.path];
+			flush(0);
+		})
+	);
 
 	// 停用 / 卸载插件：把待写位置立即落盘、解绑容器监听，避免残留监听继续记录写盘
 	plugin.register(() => {
@@ -109,7 +130,7 @@ function flush(delayMs = 1200): void {
 		flushTimer = null;
 		if (!pluginRef) return;
 		pluginRef.settings.readPositions = map; // 以 map 为准（兼容「恢复默认设置」后引用变化）
-		void pluginRef.saveSettings();
+		void pluginRef.persistSettings(); // 只落盘：滚动高频路径不能走 saveSettings（那会向每个编辑器派发事务）
 	};
 	if (delayMs <= 0) {
 		write();

@@ -23,39 +23,17 @@ export class ImageToolsController {
  private resizeFrame:HTMLElement|null=null; private resizeObserver:ResizeObserver|null=null; private cancelResize:(() => void)|null=null;
  private editor:ImageEditorModal|null=null;
  private roots=new Map<HTMLElement,RenderScope>(); private timer:number|null=null;
+ /** 已绑定全局监听的 document（主窗口 + 各弹出窗口，各自一份）（E6） */
+ private boundDocs=new Set<Document>();
  constructor(readonly plugin: FeishuLitePlugin) {
   document.querySelectorAll(".fl-image-toolbar,.fl-image-resize,.fl-image-menu").forEach(el=>el.remove());
   plugin.registerMarkdownPostProcessor((el,ctx) => { ctx.addChild(new ImageToolsRenderChild(el,ctx,this)); },90);
   plugin.registerEditorExtension(ImageToolsController.editorViewPlugin(this));
   plugin.registerEditorExtension(StateField.define({create:state => this.metadataDecorations(state),update:(d,tr) => tr.docChanged || tr.selection || tr.effects.length ? this.metadataDecorations(tr.state) : d,provide:f => EditorView.decorations.from(f)}));
-  const onImageClick=(e:MouseEvent) => {
-   if (!plugin.settings.imageTools) return; const target=e.target as HTMLElement;
-   if (!target?.closest || target.closest('.fl-image-toolbar,.fl-image-menu,.fl-image-resize,.fl-image-editor')) return;
-   if(target.closest('.lightbox,.fl-lightbox,.embed-action')) { this.closeToolbar(); return; }
-   const img=target.closest<HTMLImageElement>('img');
-   if (!img || img.closest('a') || !img.closest('.markdown-reading-view,.markdown-preview-view,.cm-editor')) return;
-   const editorRoot=img.closest<HTMLElement>('.cm-editor'), view=editorRoot ? EditorView.findFromDOM(editorRoot) : null;
-   let context; try { context=view ? this.editorContext(view,img) : this.contexts.get(img); } catch(err) { reportError(err); return; }
-   if (!context) return;
-   // LP mousedown opens our toolbar; the subsequent native click also opens
-   // Obsidian 1.13's viewer unless intercepted before the embed handler.
-   e.preventDefault(); e.stopImmediatePropagation(); void this.showToolbar(img,context).catch(reportError);
-  };
-  plugin.registerDomEvent(document,'click',onImageClick,true);
-  plugin.registerDomEvent(document,'dblclick',onImageClick,true);
-  plugin.registerDomEvent(document,'contextmenu',e=> { if(!plugin.settings.imageTools)return;const img=(e.target as HTMLElement)?.closest<HTMLImageElement>('img');if(!img || img.closest('a,.lightbox,.fl-lightbox,.modal-container'))return;const context=this.contextFor(img);if(!context)return;e.preventDefault();e.stopImmediatePropagation();void this.openContextMenu(e,img,context).catch(reportError); },true);
-  const overlays=new MutationObserver(()=> { if(document.querySelector('.lightbox,.fl-lightbox,.modal-container')) this.closeToolbar(); });
-  overlays.observe(document.body,{childList:true}); plugin.register(()=>overlays.disconnect());
-  plugin.registerDomEvent(document,'pointerdown',e => {
-   if(this.cancelResize)return;
-   const t=e.target as HTMLElement,embed=this.active?.closest('.image-embed,.internal-embed,.fl-image-media');
-   if(this.toolbar && !t.closest('.fl-image-toolbar,.fl-image-menu,.fl-image-resize,.modal-container') && t!==this.active && !embed?.contains(t))this.closeToolbar();
-  },true);
-  plugin.registerDomEvent(document,'pointermove',()=>{if(this.active && !this.cancelResize)this.position();},true);
-  plugin.registerDomEvent(window,'keydown',e=> {if(e.key==='Escape' && !e.isComposing && (e.target as HTMLElement)?.closest('.fl-image-toolbar')){e.preventDefault();e.stopImmediatePropagation();this.closeToolbar(false);} },true);
-  plugin.registerDomEvent(document,'keydown',e=> { if(e.key==='Escape' && !e.isComposing)this.closeToolbar(false); });
-  plugin.registerDomEvent(document,'scroll',() => this.position(),true);
-  plugin.registerDomEvent(window,'resize',() => this.position());
+  this.bindDocument(document); // 主窗口
+  // 弹出窗口（popout）各绑一份：弹窗里的图片工具条同样可用（E6）
+  plugin.registerEvent(plugin.app.workspace.on('window-open',(_w,win)=>{this.bindDocument(win.document);}));
+  plugin.registerEvent(plugin.app.workspace.on('window-close',(_w,win)=>{this.boundDocs.delete(win.document);}));
   plugin.registerEvent(plugin.app.vault.on('rename',(f,oldPath) => { void this.renameProjects(f,oldPath).catch(reportError); }));
   plugin.registerEvent(plugin.app.vault.on('modify',f => { if (f instanceof TFile && f.extension === 'md') this.schedule(); }));
   plugin.registerEvent(plugin.app.workspace.on('file-open',file => {if(file?.path!==this.activeContext?.file.path)this.closeToolbar();}));
@@ -67,6 +45,47 @@ export class ImageToolsController {
   }});
   plugin.register(() => { this.closeToolbar();this.contextMenu?.hide(); this.editor?.close(); if (this.timer !== null) window.clearTimeout(this.timer); this.roots.clear(); });
  }
+ /** 把全局监听绑到某个窗口（主窗口 / 弹出窗口）：挂元素与摘除都跟着元素所属的 document 走（E6） */
+ private bindDocument(doc:Document):void {
+  if(this.boundDocs.has(doc))return;
+  this.boundDocs.add(doc);
+  const win=doc.defaultView ?? window;
+  this.plugin.registerDomEvent(doc,'click',this.onImageClick,true);
+  this.plugin.registerDomEvent(doc,'dblclick',this.onImageClick,true);
+  this.plugin.registerDomEvent(doc,'contextmenu',this.onImageContextMenu,true);
+  const overlays=new MutationObserver(()=> { if(doc.querySelector('.lightbox,.fl-lightbox,.modal-container')) this.closeToolbar(); });
+  overlays.observe(doc.body,{childList:true}); this.plugin.register(()=>overlays.disconnect());
+  this.plugin.registerDomEvent(doc,'pointerdown',this.onPointerDown,true);
+  this.plugin.registerDomEvent(doc,'pointermove',()=>{if(this.active && !this.cancelResize)this.position();},true);
+  this.plugin.registerDomEvent(win,'keydown',e=> {if(e.key==='Escape' && !e.isComposing && (e.target as HTMLElement)?.closest('.fl-image-toolbar')){e.preventDefault();e.stopImmediatePropagation();this.closeToolbar(false);} },true);
+  this.plugin.registerDomEvent(doc,'keydown',e=> { if(e.key==='Escape' && !e.isComposing)this.closeToolbar(false); });
+  this.plugin.registerDomEvent(doc,'scroll',() => this.position(),true);
+  this.plugin.registerDomEvent(win,'resize',() => this.position());
+ }
+ private onImageClick=(e:MouseEvent) => {
+  if (!this.plugin.settings.imageTools) return; const target=e.target as HTMLElement;
+  if (!target?.closest || target.closest('.fl-image-toolbar,.fl-image-menu,.fl-image-resize,.fl-image-editor')) return;
+  if(target.closest('.lightbox,.fl-lightbox,.embed-action')) { this.closeToolbar(); return; }
+  const img=target.closest<HTMLImageElement>('img');
+  if (!img || img.closest('a') || !img.closest('.markdown-reading-view,.markdown-preview-view,.cm-editor')) return;
+  const editorRoot=img.closest<HTMLElement>('.cm-editor'), view=editorRoot ? EditorView.findFromDOM(editorRoot) : null;
+  let context; try { context=view ? this.editorContext(view,img) : this.contexts.get(img); } catch(err) { reportError(err); return; }
+  if (!context) return;
+  // LP mousedown opens our toolbar; the subsequent native click also opens
+  // Obsidian 1.13's viewer unless intercepted before the embed handler.
+  e.preventDefault(); e.stopImmediatePropagation(); void this.showToolbar(img,context).catch(reportError);
+ };
+ private onImageContextMenu=(e:MouseEvent) => {
+  if(!this.plugin.settings.imageTools)return;const img=(e.target as HTMLElement)?.closest<HTMLImageElement>('img');
+  if(!img || img.closest('a,.lightbox,.fl-lightbox,.modal-container'))return;
+  const context=this.contextFor(img);if(!context)return;
+  e.preventDefault();e.stopImmediatePropagation();void this.openContextMenu(e,img,context).catch(reportError);
+ };
+ private onPointerDown=(e:PointerEvent) => {
+  if(this.cancelResize)return;
+  const t=e.target as HTMLElement,embed=this.active?.closest('.image-embed,.internal-embed,.fl-image-media');
+  if(this.toolbar && !t.closest('.fl-image-toolbar,.fl-image-menu,.fl-image-resize,.modal-container') && t!==this.active && !embed?.contains(t))this.closeToolbar();
+ };
  closeToolbar(commit=true):void {
   this.toolbarRevision++;const save=this.saveCaption;this.saveCaption=null;
   if(commit && save)void save().catch(reportError);
@@ -83,7 +102,7 @@ export class ImageToolsController {
   await this.saveCaption?.();this.closeToolbar(false);const revision=this.toolbarRevision;
   const text=await readNote(this.plugin.app,context.file);if(revision!==this.toolbarRevision)return;context={file:context.file,text,ref:locateImage(text,context.ref)};
   this.contextMenu?.hide();const file=this.resolve(context.ref,context.file),menu=new Menu().setUseNativeMenu(false);this.contextMenu=menu;menu.onHide(()=>{if(this.contextMenu===menu)this.contextMenu=null;});
-  menu.addItem(item=>item.setTitle('查看图片').setIcon('expand').onClick(()=>openLightbox(img.src,context.ref.alt)));
+  menu.addItem(item=>item.setTitle('查看图片').setIcon('expand').onClick(()=>openLightbox(img.src,context.ref.alt,img.ownerDocument)));
   menu.addItem(item=>item.setTitle('替换图片').setIcon('image').onClick(()=>new FileDialog(this.plugin.app,f=>IMAGE_EXTS.includes(f.extension.toLowerCase()),f=>this.replace(context,f),'选择替换图片').open()));
   menu.addItem(item=>item.setTitle('裁剪与标注').setIcon('crop').setDisabled(!file || !['png','jpg','jpeg','webp','bmp','avif'].includes(file.extension.toLowerCase())).onClick(()=> {void this.edit(context).catch(reportError);}));
   menu.addSeparator();
@@ -127,6 +146,7 @@ export class ImageToolsController {
     if(controller.activePane?.contains(this.view.dom))controller.position();
    };
    constructor(private view:EditorView) {
+    controller.bindDocument(view.dom.ownerDocument); // 弹窗里的编辑器：顺带把该窗口的监听绑上（E6）
     this.down=e => { if (e.button !== 0 || e.defaultPrevented || !controller.plugin.settings.imageTools) return;
      const img=(e.target as HTMLElement)?.closest<HTMLImageElement>('img'); if (!img || img.closest('a,.fl-lightbox,.fl-image-editor')) return;
      const context=controller.editorContext(view,img); if (!context) return;
@@ -207,7 +227,7 @@ export class ImageToolsController {
    media.appendChild(first); body.append(...Array.from(content.childNodes)); content.append(media,body);
   }
  }
- addRoot(el:HTMLElement,ctx:RenderScope): void { this.roots.set(el,ctx); void this.decorateRoot(el,ctx).catch(reportError); }
+ addRoot(el:HTMLElement,ctx:RenderScope): void { this.bindDocument(el.ownerDocument); this.roots.set(el,ctx); void this.decorateRoot(el,ctx).catch(reportError); }
  removeRoot(el:HTMLElement): void { this.roots.delete(el); }
  private schedule(): void { if (this.timer !== null) window.clearTimeout(this.timer); this.timer=window.setTimeout(() => { this.timer=null; for (const [el,ctx] of this.roots) void this.decorateRoot(el,ctx).catch(reportError); },150); }
  private metadataDecorations(state:EditorView['state']) {
@@ -226,21 +246,25 @@ export class ImageToolsController {
   if(this.active && !this.active.isConnected) { this.reconnect();if(!this.active?.isConnected){if(this.resizeFrame)this.resizeFrame.hidden=true;return;} }
   if(this.resizeFrame && this.active) { const r=this.active.getBoundingClientRect(); Object.assign(this.resizeFrame.style,{left:r.left+'px',top:r.top+'px',width:r.width+'px',height:r.height+'px'}); this.resizeFrame.hidden=!this.active.isConnected || !r.width || !r.height; }
   if (!this.toolbar) return;
+  // 坐标一律按工具条所在窗口算：弹窗里用主窗口尺寸会算错位置（E6）
+  const win=this.active?.ownerDocument.defaultView ?? window;
   const pane=this.active?.closest<HTMLElement>('.workspace-leaf-content,.markdown-preview-view,.cm-editor')?.getBoundingClientRect();
-  const left=Math.max(8,(pane?.left ?? 0)+8),right=Math.max(left,Math.min(window.innerWidth-8,(pane?.right ?? window.innerWidth)-8));
+  const left=Math.max(8,(pane?.left ?? 0)+8),right=Math.max(left,Math.min(win.innerWidth-8,(pane?.right ?? win.innerWidth)-8));
   const available=Math.max(1,right-left);this.toolbar.style.maxWidth=`${Math.min(330,available)}px`;this.toolbar.dataset.boundLeft=String(left);this.toolbar.dataset.boundRight=String(right);
   this.toolbar.classList.toggle('is-tiny',available<220);
   const r=this.active?.getBoundingClientRect(), w=this.toolbar.offsetWidth, h=this.toolbar.offsetHeight;
-  const top=Math.max(8,pane?.top ?? 8),bottom=Math.min(window.innerHeight-8,pane?.bottom ?? window.innerHeight-8);
+  const top=Math.max(8,pane?.top ?? 8),bottom=Math.min(win.innerHeight-8,pane?.bottom ?? win.innerHeight-8);
   this.toolbar.style.left=`${Math.max(left,Math.min(r?.left ?? left,right-w))}px`;
   this.toolbar.style.top=`${Math.max(top,Math.min((r?.bottom ?? top)+6+h<=bottom?(r?.bottom ?? top)+6:(r?.top ?? bottom)-h-6,bottom-h))}px`;
  }
  async showToolbar(img:HTMLImageElement | null,context:ImageContext): Promise<void> {
   if(img && img===this.active && this.toolbar && this.activeContext?.file.path===context.file.path){this.position();return;}
-  this.closeToolbar(); if(document.querySelector('.lightbox,.fl-lightbox')) return;
-  const revision=this.toolbarRevision, text=await readNote(this.plugin.app,context.file); if (revision !== this.toolbarRevision || document.querySelector('.lightbox,.fl-lightbox')) return; const ref=locateImage(text,context.ref); const current={file:context.file,ref,text};
+  // 工具条挂在图片所属的 document 上（弹窗 = 弹窗自己的 document），灯箱检查也要看同一个（E6）
+  const owner=img?.ownerDocument ?? document;
+  this.closeToolbar(); if(owner.querySelector('.lightbox,.fl-lightbox')) return;
+  const revision=this.toolbarRevision, text=await readNote(this.plugin.app,context.file); if (revision !== this.toolbarRevision || owner.querySelector('.lightbox,.fl-lightbox')) return; const ref=locateImage(text,context.ref); const current={file:context.file,ref,text};
   this.active=img;this.activeContext=current;this.activePane=img?.closest<HTMLElement>('.workspace-leaf-content,.markdown-preview-view,.cm-editor') ?? null;img?.classList.add('fl-image-selected');
-  const bar=document.body.createDiv({cls:'fl-image-toolbar fl-image-basic',attr:{role:'toolbar','aria-label':'图片：缩放、居中和图注','data-fl-ui':'basic'}});this.toolbar=bar;
+  const bar=owner.body.createDiv({cls:'fl-image-toolbar fl-image-basic',attr:{role:'toolbar','aria-label':'图片：缩放、居中和图注','data-fl-ui':'basic'}});this.toolbar=bar;
   bar.addEventListener('mousedown',e=> { if((e.target as HTMLElement).closest('button'))e.preventDefault(); });
   bar.createSpan({cls:'fl-image-size',text:`${ref.width ?? Math.round(img?.getBoundingClientRect().width ?? 0)} px`});
   const center=action(bar,'居中',()=>this.change(current,(s,r)=>patchImage(s,r,{align:r.align==='center'?'left':'center'}),true),'fl-image-center');center.setAttribute('aria-pressed',String(ref.align==='center'));center.title='切换居中 / 左对齐';

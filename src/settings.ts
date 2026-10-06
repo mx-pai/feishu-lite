@@ -109,6 +109,29 @@ export const DEFAULT_SETTINGS: FlSettings = {
 /** 设置页分区 id（折叠状态键 + 「全部折叠」用） */
 const SECTION_IDS = ["naming", "grid", "editor", "annotations", "highlight", "read", "tools", "reset"];
 
+/** 嵌套表字段的拷贝：类型不符（旧数据 / 损坏数据）时回落到默认值的拷贝 */
+function cloneRecord<T extends Record<string, unknown>>(value: unknown, fallback: T): T {
+	const source = value && typeof value === "object" && !Array.isArray(value) ? (value as T) : fallback;
+	return { ...source };
+}
+
+/**
+ * 载入 / 重置用的归一化：默认值整体深拷贝后与已存数据合并。
+ * 关键点：嵌套对象（readPositions / customHighlightColors / settingsCollapsed）绝不与
+ * DEFAULT_SETTINGS 共享引用——否则运行期写入会写脏默认值，「恢复默认」就恢复不出来。
+ */
+export function normalizeSettings(data: Partial<FlSettings> | null): FlSettings {
+	const base = JSON.parse(JSON.stringify(DEFAULT_SETTINGS)) as FlSettings;
+	if (!data) return base;
+	return {
+		...base,
+		...data,
+		readPositions: cloneRecord(data.readPositions, base.readPositions),
+		customHighlightColors: cloneRecord(data.customHighlightColors, base.customHighlightColors),
+		settingsCollapsed: cloneRecord(data.settingsCollapsed, base.settingsCollapsed),
+	};
+}
+
 /** 高亮 7 色的默认色值（与 styles.css 的 --fl-hl-* 默认配色一致，供颜色选择器回显） */
 const HL_DEFAULT_HEX: Record<string, string> = {
 	red: "#ff6363",
@@ -521,14 +544,24 @@ export class FlSettingTab extends PluginSettingTab {
 			})
 		);
 		const colorGrid = colorItem.settingEl.createDiv({ cls: "fl-color-grid" });
+		// 拖动取色器：只更新 body 上的 CSS 变量做即时预览（局部样式，不派发编辑器事务），落盘做节流
+		let persistTimer: number | null = null;
+		const persistSoon = (): void => {
+			if (persistTimer !== null) window.clearTimeout(persistTimer);
+			persistTimer = window.setTimeout(() => {
+				persistTimer = null;
+				void this.plugin.persistSettings();
+			}, 400);
+		};
 		for (const c of HL_COLORS) {
 			const cell = colorGrid.createDiv({ cls: "fl-color-cell" });
 			const input = cell.createEl("input", { attr: { type: "color" }, cls: "fl-color-input" });
 			input.value =
 				this.plugin.settings.customHighlightColors?.[c.value] ?? HL_DEFAULT_HEX[c.value] ?? "#888888";
-			input.oninput = async () => {
+			input.oninput = () => {
 				this.plugin.settings.customHighlightColors[c.value] = input.value;
-				await this.plugin.saveSettings();
+				applyCssVars(this.plugin.settings);
+				persistSoon();
 			};
 			cell.createDiv({ cls: "fl-color-label", text: c.label });
 		}
@@ -544,7 +577,7 @@ export class FlSettingTab extends PluginSettingTab {
 
 		new Setting(el)
 			.setName("代码块美化")
-			.setDesc("代码块右上角加语言徽标 + 「复制」按钮；4 行以上的自动显示行号（关掉后重开笔记完全生效）")
+			.setDesc("代码块右上角加语言徽标；4 行以上自动显示行号；复制按钮仅在系统未自带时补一个（关掉后重开笔记完全生效）")
 			.addToggle((t) =>
 				t.setValue(this.plugin.settings.codePretty).onChange(async (v) => {
 					this.plugin.settings.codePretty = v;
@@ -649,7 +682,7 @@ export class FlSettingTab extends PluginSettingTab {
 
 		el.createDiv({ cls: "fl-subtitle", text: "附件自动清理" });
 		el.createEl("p", {
-			text: "图床自动管家（全自动、无需管理）：启动后约 15 秒清理「全库无任何引用且超过 24 小时」的图片附件——只移入回收站（跟随 Obsidian「删除文件」设置），绝不直接抹除；此后每 24 小时复查一次。判定双保险：官方链接索引 + 全库文本兜底扫描。",
+			text: "图床自动管家（全自动、无需管理）：启动后约 15 秒清理「全库无任何引用且超过 24 小时」的图片附件，此后每 24 小时复查一次。清理结果跟随 Obsidian「删除文件」设置：系统回收站 / 库内回收站可找回；若该设置为「永久删除」，自动清理会整体跳过（不会自动永久删除文件），手动执行命令时会先弹窗确认，删除后无法找回。判定双保险：官方链接索引 + 全库文本兜底扫描（含隐藏文件）。",
 			cls: "setting-item-description fl-preview-cap",
 		});
 
@@ -685,7 +718,8 @@ export class FlSettingTab extends PluginSettingTab {
 					return;
 				}
 				if (timer !== null) window.clearTimeout(timer);
-				Object.assign(this.plugin.settings, JSON.parse(JSON.stringify(DEFAULT_SETTINGS)) as FlSettings);
+				// 走归一化函数取默认值：嵌套对象都是深拷贝，恢复后不会与 DEFAULT_SETTINGS 再共享引用
+				Object.assign(this.plugin.settings, normalizeSettings(null));
 				clearReadPositions(); // 阅读位置表已换新引用：模块内 map 同步清空，防止旧记录被写回
 				await this.plugin.saveSettings();
 				syncToc(this.plugin); // 浮动目录可见性可能变化：立即生效

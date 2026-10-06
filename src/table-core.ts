@@ -14,6 +14,12 @@ export interface Cell {
 	to: number;
 }
 
+/** 一行解析结果：单元格数组 + 行首前缀（第一个 "|" 之前的全部字符：块引用符 / 列表符 / 缩进） */
+export interface TableRow extends Array<Cell> {
+	/** 写回时原样保留，保证 callout / 列表 / 缩进里的表格不被拽出所在容器 */
+	prefix: string;
+}
+
 /** 判断是否宽字符（CJK / 全角 / emoji 大致记 2 宽） */
 export function isWideChar(cp: number): boolean {
 	return (
@@ -47,9 +53,9 @@ export function isSeparatorCell(text: string): boolean {
 
 /**
  * 解析一行标准表格行（| a | b |）。无法解析返回 null。
- * 位置 from/to 是相对整行的 ch 值。
+ * 位置 from/to 是相对整行的 ch 值；行首前缀（第一个 "|" 之前）记录在结果行的 prefix 上。
  */
-export function parseRow(line: string): Cell[] | null {
+export function parseRow(line: string): TableRow | null {
 	const first = line.indexOf("|");
 	const last = line.lastIndexOf("|");
 	if (first < 0 || last <= first) return null;
@@ -67,7 +73,10 @@ export function parseRow(line: string): Cell[] | null {
 		}
 	}
 	pushCell(cells, line, segStart, last);
-	return cells.length ? cells : null;
+	if (!cells.length) return null;
+	const row = cells as TableRow;
+	row.prefix = line.slice(0, first);
+	return row;
 }
 
 function pushCell(cells: Cell[], line: string, segStart: number, segEnd: number): void {
@@ -95,7 +104,7 @@ export function cellIndexAt(cells: Cell[], ch: number): number {
 	return 0;
 }
 
-/** 把若干行（各已解析出单元格）格式化为对齐的 markdown 表格 */
+/** 把若干行（各已解析出单元格）格式化为对齐的 markdown 表格（每行自己的行首前缀原样写回） */
 export function formatTableRows(rows: Cell[][]): string[] {
 	const cols = rows.reduce((m, r) => Math.max(m, r.length), 0);
 	const width: number[] = [];
@@ -121,13 +130,13 @@ export function formatTableRows(rows: Cell[][]): string[] {
 				parts.push(t + " ".repeat(pad));
 			}
 		}
-		return "| " + parts.join(" | ") + " |";
+		return ((r as Partial<TableRow>).prefix ?? "") + "| " + parts.join(" | ") + " |";
 	});
 }
 
 /** 表格多行（原始文本）→ 格式化后的行；任一行无法解析则返回 null */
 export function formatTableLines(lines: string[]): string[] | null {
-	const rows: Cell[][] = [];
+	const rows: TableRow[] = [];
 	for (const line of lines) {
 		const cells = parseRow(line);
 		if (!cells) return null;
@@ -138,8 +147,8 @@ export function formatTableLines(lines: string[]): string[] | null {
 
 // ---------------- 行 / 列增删（表格选择器与行列命令用，纯逻辑可单测） ----------------
 
-function parseRows(lines: string[]): Cell[][] | null {
-	const rows: Cell[][] = [];
+function parseRows(lines: string[]): TableRow[] | null {
+	const rows: TableRow[] = [];
 	for (const line of lines) {
 		const cells = parseRow(line);
 		if (!cells) return null;
@@ -157,7 +166,9 @@ export function insertRow(lines: string[], at: number): string[] | null {
 	const rows = parseRows(lines);
 	if (!rows) return null;
 	const cols = rows.reduce((m, r) => Math.max(m, r.length), 0);
-	rows.splice(Math.max(0, Math.min(at, rows.length)), 0, Array.from({ length: cols }, () => blankCell()));
+	const fresh = Array.from({ length: cols }, () => blankCell()) as TableRow;
+	fresh.prefix = rows[0]?.prefix ?? ""; // 新行沿用表格行首前缀，避免把 callout / 列表里的表格拦腰截断
+	rows.splice(Math.max(0, Math.min(at, rows.length)), 0, fresh);
 	return formatTableRows(rows);
 }
 

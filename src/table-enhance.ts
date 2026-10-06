@@ -5,7 +5,7 @@ import { Notice } from "obsidian";
 import type { Editor } from "obsidian";
 import type FeishuLitePlugin from "./main";
 import { isPluginEnabled } from "./util";
-import type { Cell } from "./table-core";
+import type { TableRow } from "./table-core";
 import { cellIndexAt, deleteCol, deleteRow, formatTableLines, insertCol, insertRow, isSeparatorRow, parseRow } from "./table-core";
 
 /**
@@ -36,7 +36,7 @@ interface TableAround {
 	/** 表格末行（1-based） */
 	endLine: number;
 	lines: string[];
-	rows: Cell[][];
+	rows: TableRow[];
 }
 
 /** 取光标所在表格（连续「标准管道行」且至少含一个分隔行），否则 null */
@@ -53,7 +53,7 @@ function getTableAround(view: EditorView): TableAround | null {
 	while (end < state.doc.lines && parseRow(state.doc.line(end + 1).text)) end++;
 
 	const lines: string[] = [];
-	const rows: Cell[][] = [];
+	const rows: TableRow[] = [];
 	for (let n = start; n <= end; n++) {
 		const t = state.doc.line(n).text;
 		const cells = parseRow(t);
@@ -103,11 +103,19 @@ function runNav(plugin: FeishuLitePlugin, view: EditorView, dir: 1 | -1 | 0): bo
 		targetRow = row + 1; // Enter：下一行同列
 	}
 
-	// 越过末行 → 追加新行
+	// 跨行跳格时越过行分隔行（| --- |）：光标停进分隔行随手一个字符就毁掉整表
+	const step = dir === -1 ? -1 : 1;
+	while (targetRow >= 0 && targetRow < t.rows.length && isSeparatorRow(t.rows[targetRow])) {
+		targetRow += step;
+		if (dir === -1 && targetRow >= 0) targetCol = Math.max(0, t.rows[targetRow].length - 1);
+	}
+	if (targetRow < 0) return false; // 上方只剩分隔行：放行默认行为
+
+	// 越过末行 → 追加新行（沿用表格行首前缀，callout / 列表里的表格不被截断）
 	let extraRow: string | null = null;
 	if (targetRow >= t.rows.length) {
 		const headerCols = t.rows[0].length;
-		extraRow = "| " + new Array(headerCols).fill("").join(" | ") + " |";
+		extraRow = (t.rows[0].prefix ?? "") + "| " + new Array(headerCols).fill("").join(" | ") + " |";
 		targetRow = t.rows.length;
 		targetCol = Math.min(targetCol, headerCols - 1);
 	}

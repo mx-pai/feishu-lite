@@ -1,6 +1,7 @@
-import { MarkdownView, Plugin } from "obsidian";
+import { MarkdownView, Modal, Plugin } from "obsidian";
+import type { App } from "obsidian";
 import type { EditorView } from "@codemirror/view";
-import { DEFAULT_SETTINGS, FlSettingTab, applyCssVars } from "./settings";
+import { FlSettingTab, applyCssVars, normalizeSettings } from "./settings";
 import type { FlSettings } from "./settings";
 import { SlashSuggest } from "./slash";
 import { closeCascade } from "./cascade";
@@ -31,6 +32,30 @@ import {
 import { closeTablePicker, openTablePicker } from "./table-picker";
 import { CommentsController } from "./comments";
 import { ImageToolsController } from "./image-tools";
+
+/** 二选一确认弹窗（不可撤销操作二次确认用，如「永久删除」模式下的附件清理） */
+class ConfirmActionModal extends Modal {
+	private confirmed = false;
+	constructor(app: App, private title: string, private message: string, private done: (ok: boolean) => void) {
+		super(app);
+	}
+	onOpen(): void {
+		this.titleEl.setText(this.title);
+		this.contentEl.createEl("p", { text: this.message });
+		const footer = this.contentEl.createDiv({ cls: "fl-dialog-actions" });
+		const cancel = footer.createEl("button", { text: "取消" });
+		cancel.onclick = () => this.close();
+		const ok = footer.createEl("button", { text: "确认", cls: "mod-warning" });
+		ok.onclick = () => {
+			this.confirmed = true;
+			this.close();
+		};
+	}
+	onClose(): void {
+		this.contentEl.empty();
+		this.done(this.confirmed); // 关闭回调只走一次（取消 / 直接关闭都算不确认）
+	}
+}
 
 export default class FeishuLitePlugin extends Plugin {
 	settings!: FlSettings;
@@ -159,16 +184,27 @@ export default class FeishuLitePlugin extends Plugin {
 
 	async loadSettings(): Promise<void> {
 		const data = (await this.loadData()) as Partial<FlSettings> | null;
-		this.settings = { ...DEFAULT_SETTINGS, ...data };
+		this.settings = normalizeSettings(data);
 	}
 
-	async saveSettings(): Promise<void> {
+	/** 只落盘、不触发任何重渲染：高频路径（阅读位置滚动落盘 / 取色器拖动）走这里 */
+	async persistSettings(): Promise<void> {
 		await this.saveData(this.settings);
+	}
+
+	/** 落盘 + 立即重渲染（注入 CSS 变量 + 让编辑器重画）：需要即时反映到界面的设置项走这里 */
+	async saveSettings(): Promise<void> {
+		await this.persistSettings();
 		applyCssVars(this.settings);
 		for (const leaf of this.app.workspace.getLeavesOfType("markdown")) {
 			if (!(leaf.view instanceof MarkdownView)) continue;
 			const cm = (leaf.view.editor as unknown as { cm?: EditorView }).cm;
 			if (cm && !cm.composing) cm.dispatch({ selection: cm.state.selection });
 		}
+	}
+
+	/** 不可撤销操作（如「永久删除」模式下的附件清理）的二次确认；返回用户是否确认 */
+	confirmAction(title: string, message: string): Promise<boolean> {
+		return new Promise((resolve) => new ConfirmActionModal(this.app, title, message, resolve).open());
 	}
 }

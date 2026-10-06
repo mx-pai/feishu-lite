@@ -16,7 +16,7 @@ Lark-doc-style editing for Obsidian: annotations, image layout & crop-annotate, 
 
 ![斜杠菜单：高亮块、代码块、Mermaid、表格等](docs/img/slash.png)
 
-**浮动目录** —— 右缘窄轨常驻，悬停展开为大纲卡片；滚动跟随、点击跳转
+**浮动目录** —— 右缘窄轨常驻（移动端为悬浮按钮），悬停 / 点按展开为大纲卡片；多级折叠、滚动跟随、点击跳转
 
 ![浮动目录：悬停展开并跟踪当前章节](docs/img/toc.png)
 
@@ -44,7 +44,7 @@ Lark-doc-style editing for Obsidian: annotations, image layout & crop-annotate, 
 - **表格 / 列表增强** — Tab 跳格自动对齐、行列增删；`Cmd+Shift+↑/↓` 移动子树；对 Advanced Tables / Outliner 自动让位
 - **阅读视图美化** — 代码块徽标 / 复制 / 行号、表格斑马纹
 - **图片查看器** — 右键图片点「查看图片」悬浮放大：滚轮缩放、拖拽平移、Esc / 点击空白关闭（关闭图片工具条时保持直接点击查看）
-- **浮动目录** — 右侧悬浮大纲：悬停展开、滚动跟随、点击跳转
+- **浮动目录** — 右侧悬浮大纲：多级标题折叠（滚动进折叠分支自动展开）；桌面悬停展开，移动端悬浮按钮点按展开；滚动跟随、点击跳转
 - **还有** — Mermaid 骨架、中英混排美化、阅读位置记忆、附件自动清理、目录页自动化
 
 ## Features
@@ -59,7 +59,7 @@ Lark-doc-style editing for Obsidian: annotations, image layout & crop-annotate, 
 - **Table & list enhancements** — Tab navigation with auto-alignment, row and column editing, `Cmd+Shift+↑/↓` subtree moves; yields to Advanced Tables / Outliner
 - **Reading view polish** — code block badges, copy button and line numbers, zebra tables
 - **Image lightbox** — choose View Image in the context menu: wheel scaling, drag to pan, Esc / click-outside to close (reading & editing views)
-- **Floating outline** — hover-to-expand rail on the right edge, scroll-following highlight, click to jump
+- **Floating outline** — collapsible heading tree, scroll-following highlight, click to jump; hover-to-expand rail on desktop, tap-to-expand floating button on mobile
 - **Also included** — Mermaid snippets, CJK–Latin spacing, reading position memory, attachment cleanup, index-page automation
 
 ## 安装 / Installation

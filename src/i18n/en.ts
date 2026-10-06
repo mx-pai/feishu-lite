@@ -15,6 +15,11 @@ export const en = {
 		reading: "Reading · polish & navigation",
 		maintenance: "Maintenance",
 	},
+	hero: {
+		tagline: "Lark-doc-style editing · annotations / images / highlights / reading",
+		collapseAll: "Collapse all",
+		expandAll: "Expand all",
+	},
 	paste: {
 		rename: {
 			name: "Auto-name on paste",
@@ -160,6 +165,10 @@ export const en = {
 			blue: "Blue",
 			purple: "Purple",
 			gray: "Gray",
+		},
+		colorsRow: {
+			name: "Highlight colors",
+			desc: "Click a swatch to change that color: red / orange / yellow / green / blue / purple / gray",
 		},
 		restoreColors: "Restore default colors",
 	},

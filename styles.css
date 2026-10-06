@@ -274,6 +274,120 @@ body.theme-dark {
 	background: linear-gradient(135deg, var(--background-modifier-hover), var(--background-modifier-border));
 }
 
+/* 高亮颜色行：7 个色块收进一行（颜色名走悬停提示） */
+.fl-hl-colors {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 10px;
+	align-items: center;
+}
+
+/* —— 设置页：分区卡片 + 折叠交互（声明式设置的分组增强；fl-settings / fl-sec 由设置页脚本注入） —— */
+
+.fl-hero-row .setting-item-info,
+.fl-hero-row .setting-item-control {
+	display: none;
+}
+/* 顶部工具行收紧：只留一行按钮，不留大块空白（多带一个类，压过原生 .setting-group .setting-item 的内边距） */
+.fl-settings .setting-item.fl-hero-row {
+	padding: 4px 0 8px;
+	border-top: none;
+}
+/* 原生声明式分组会给内容层 .setting-items 画一块浅色圆角板（1.13 默认样式：--setting-items-background 等一套变量）；
+   本插件外层已自画卡片（与旧版观感一致），去掉内层这块板，避免「卡中卡」与顶部那条色带 */
+.fl-settings .setting-group > .setting-items {
+	background-color: transparent;
+	border: none;
+	border-radius: 0;
+	padding: 0;
+}
+.fl-settings .fl-hero {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: 12px;
+	width: 100%;
+	margin: 2px 0 14px;
+}
+.fl-settings .fl-hero-text {
+	min-width: 0;
+}
+.fl-settings .fl-hero-title {
+	font-size: var(--h2-size);
+	font-weight: var(--h2-weight, 680);
+	line-height: 1.2;
+	margin: 0 0 2px;
+}
+.fl-settings .fl-hero-sub {
+	color: var(--text-muted);
+	font-size: var(--font-ui-small);
+}
+.fl-settings .fl-foldall {
+	flex-shrink: 0;
+	font-size: var(--font-ui-smaller);
+}
+.fl-settings .fl-sec {
+	border: 1px solid var(--background-modifier-border);
+	border-radius: var(--radius-l);
+	background: var(--background-secondary);
+	padding: 0 16px 4px;
+	margin: 0 0 14px;
+}
+/* 分区标题行：整行可点，折叠 / 展开该区 */
+.fl-settings .fl-sec > .setting-item-heading {
+	display: flex;
+	align-items: center;
+	gap: 8px;
+	padding: 12px 0 8px;
+	cursor: pointer;
+	user-select: none;
+	border-top: none;
+}
+.fl-settings .fl-sec-icon {
+	display: flex;
+	align-items: center;
+	color: var(--text-accent);
+}
+.fl-settings .fl-sec-icon svg {
+	width: 16px;
+	height: 16px;
+}
+.fl-settings .fl-sec > .setting-item-heading .setting-item-name {
+	font-size: var(--font-ui-medium);
+	font-weight: 600;
+}
+/* 折叠箭头：纯 CSS（chevron，与原生图标观感一致），收起时旋转朝右 */
+.fl-settings .fl-sec > .setting-item-heading::after {
+	content: "";
+	flex-shrink: 0;
+	width: 16px;
+	height: 16px;
+	margin-left: auto;
+	background-color: var(--text-faint);
+	-webkit-mask: url("data:image/svg+xml,%3Csvg%20xmlns='http://www.w3.org/2000/svg'%20viewBox='0%200%2024%2024'%20fill='none'%20stroke='black'%20stroke-width='2'%20stroke-linecap='round'%20stroke-linejoin='round'%3E%3Cpath%20d='m6%209%206%206%206-6'/%3E%3C/svg%3E") center / contain no-repeat;
+	mask: url("data:image/svg+xml,%3Csvg%20xmlns='http://www.w3.org/2000/svg'%20viewBox='0%200%2024%2024'%20fill='none'%20stroke='black'%20stroke-width='2'%20stroke-linecap='round'%20stroke-linejoin='round'%3E%3Cpath%20d='m6%209%206%206%206-6'/%3E%3C/svg%3E") center / contain no-repeat;
+	transition: transform 0.15s ease;
+}
+.fl-settings .fl-sec > .setting-item-heading:hover::after {
+	background-color: var(--text-normal);
+}
+.fl-settings .fl-sec.is-collapsed > .setting-item-heading::after {
+	transform: rotate(-90deg);
+}
+.fl-settings .fl-sec.is-collapsed {
+	padding-bottom: 12px;
+}
+.fl-settings .fl-sec.is-collapsed > .setting-items {
+	display: none;
+}
+/* 卡内设置项：只在相邻两项之间画分隔线（首项贴标题行） */
+.fl-settings .fl-sec > .setting-items > .setting-item {
+	border-top: none;
+}
+.fl-settings .fl-sec > .setting-items > .setting-item + .setting-item {
+	border-top: 1px solid var(--background-modifier-border);
+}
+
 /* ---------- 级联选项菜单（斜杠菜单回车后右侧展开，替代二次弹窗） ---------- */
 .fl-cascade {
 	position: fixed;

@@ -1,4 +1,4 @@
-import { App, Notice, PluginSettingTab } from "obsidian";
+import { App, Notice, PluginSettingTab, setIcon } from "obsidian";
 import type { SettingDefinition, SettingDefinitionItem } from "obsidian";
 import type FeishuLitePlugin from "./main";
 import { buildImageName } from "./naming";
@@ -46,6 +46,8 @@ export interface FlSettings {
 	rememberScroll: boolean;
 	/** 粘贴时自动美化中英混排（中文与英文/数字间补空格；命令「格式：中英混排美化」可手动执行） */
 	cjkPaste: boolean;
+	/** 设置页分区折叠状态（分区 id → 是否收起；缺省展开；仅设置界面状态，不影响功能） */
+	settingsCollapsed: Record<string, boolean>;
 	/** 阅读位置表：vault 路径 -> 视口顶部行号（由 read-position 模块自动维护，勿手改） */
 	readPositions: Record<string, number>;
 	/** 自定义高亮颜色（颜色名 -> #hex），空 = 使用内置配色 */
@@ -92,6 +94,7 @@ export const DEFAULT_SETTINGS: FlSettings = {
 	tocVisible: false,
 	rememberScroll: true,
 	cjkPaste: false,
+	settingsCollapsed: {},
 	readPositions: {},
 	customHighlightColors: {},
 	pickerScope: "all",
@@ -113,7 +116,7 @@ function cloneRecord<T extends Record<string, unknown>>(value: unknown, fallback
 
 /**
  * 载入 / 重置用的归一化：默认值整体深拷贝后与已存数据合并。
- * 关键点：嵌套对象（readPositions / customHighlightColors）绝不与 DEFAULT_SETTINGS 共享引用——
+ * 关键点：嵌套对象（readPositions / customHighlightColors / settingsCollapsed）绝不与 DEFAULT_SETTINGS 共享引用——
  * 否则运行期写入会写脏默认值，「恢复默认」就恢复不出来。
  */
 export function normalizeSettings(data: Partial<FlSettings> | null): FlSettings {
@@ -124,6 +127,7 @@ export function normalizeSettings(data: Partial<FlSettings> | null): FlSettings 
 		...data,
 		readPositions: cloneRecord(data.readPositions, base.readPositions),
 		customHighlightColors: cloneRecord(data.customHighlightColors, base.customHighlightColors),
+		settingsCollapsed: cloneRecord(data.settingsCollapsed, base.settingsCollapsed),
 	};
 }
 
@@ -144,6 +148,11 @@ function hexToRgba(hex: string, alpha: number): string | null {
 	const n = parseInt(m[1] ?? "", 16);
 	if (!Number.isFinite(n)) return null;
 	return `rgba(${(n >> 16) & 255}, ${(n >> 8) & 255}, ${n & 255}, ${alpha})`;
+}
+
+/** 默认分栏数：夹取到 2–4（下拉框给字符串、历史数据给数字都能吃） */
+function clampColumns(value: unknown): number {
+	return Math.min(4, Math.max(2, Math.floor(Number(value)) || 3));
 }
 
 /** 把设置注入 body（CSS 变量 + 行为类名，styles.css 消费） */
@@ -180,6 +189,22 @@ function attachmentFolder(app: App): string {
 	}
 }
 
+/** 设置页分区表：id = 折叠状态键与 DOM 增强锚点；icon = 分区标题图标。
+ *  顺序须与 getSettingDefinitions() 中分组顺序一致（增强时以标题文本回钉，顺序仅作兜底） */
+const FL_SECTIONS: { id: string; icon: string }[] = [
+	{ id: "paste", icon: "image" },
+	{ id: "grid", icon: "columns-2" },
+	{ id: "imageTools", icon: "image-plus" },
+	{ id: "library", icon: "images" },
+	{ id: "editor", icon: "pencil" },
+	{ id: "comments", icon: "message-square" },
+	{ id: "highlight", icon: "highlighter" },
+	{ id: "reading", icon: "book-open" },
+	{ id: "maintenance", icon: "rotate-ccw" },
+];
+
+const FL_SECTION_IDS: string[] = FL_SECTIONS.map((s) => s.id);
+
 /**
  * 设置页（Obsidian 1.13+ 声明式设置）：
  * - 全部界面由 getSettingDefinitions() 描述（原生外观 + 全局设置搜索）；
@@ -193,6 +218,8 @@ export class FlSettingTab extends PluginSettingTab {
 
 	private plugin: FeishuLitePlugin;
 	private colorTimer: number | null = null;
+	/** 效果预览网格元素（切分栏数时就地重绘；整页重渲染后由 render 回调重新绑定） */
+	private previewEl: HTMLElement | null = null;
 
 	constructor(app: App, plugin: FeishuLitePlugin) {
 		super(app, plugin);
@@ -234,7 +261,7 @@ export class FlSettingTab extends PluginSettingTab {
 		const s = this.plugin.settings as unknown as Record<string, unknown>;
 		switch (key) {
 			case "defaultColumns":
-				s.defaultColumns = Math.min(4, Math.max(2, Math.floor(Number(value)) || 3));
+				s.defaultColumns = clampColumns(value);
 				break;
 			case "gridRowHeight":
 				s.gridRowHeight = Math.max(0, Math.floor(Number(value)) || 0);
@@ -290,6 +317,9 @@ export class FlSettingTab extends PluginSettingTab {
 			case "datePattern":
 				this.update(); // 命名模板行的示例要跟着新日期格式重绘
 				break;
+			case "defaultColumns":
+				this.paintGridPreview(); // 效果预览要跟着列数即时重绘
+				break;
 		}
 		this.refreshDomState();
 	}
@@ -301,6 +331,16 @@ export class FlSettingTab extends PluginSettingTab {
 			this.colorTimer = null;
 			void this.plugin.persistSettings();
 		}, 400);
+	}
+
+	/** 效果预览就地重绘：按当前默认分栏数排格子（间距 / 圆角 / 行高走 body CSS 变量，随主窗实时同步） */
+	private paintGridPreview(): void {
+		const el = this.previewEl;
+		if (!el || !el.isConnected) return;
+		const cols = clampColumns(this.plugin.settings.defaultColumns);
+		el.style.gridTemplateColumns = `repeat(${cols}, minmax(0, 1fr))`;
+		while (el.children.length > cols) el.lastElementChild?.remove();
+		while (el.children.length < cols) el.createDiv();
 	}
 
 	/** 用当前设置和当前笔记名生成一个命名示例，用于「命名模板」实时预览 */
@@ -323,14 +363,130 @@ export class FlSettingTab extends PluginSettingTab {
 		new Notice(t.notices.defaultsRestored);
 	}
 
+	// ---------- 分区折叠 / 整页增强（原生声明的分组套卡片 + 可折叠，状态记忆在设置里） ----------
+
+	/** 分区 class：折叠中带 is-collapsed（搜索进行中强制展开，避免藏住命中的搜索结果） */
+	private sectionCls(id: string): string {
+		return this.isCollapsed(id) && !this.searchActive() ? "fl-sec is-collapsed" : "fl-sec";
+	}
+
+	private isCollapsed(id: string): boolean {
+		return this.plugin.settings.settingsCollapsed[id] === true;
+	}
+
+	/** 全局设置搜索进行中？（app.setting 非公开 API，取不到时按「未搜索」处理） */
+	private searchActive(): boolean {
+		const setting = (this.app as unknown as { setting?: { isSearchActive?: boolean } }).setting;
+		return setting?.isSearchActive === true;
+	}
+
+	private allFolded(): boolean {
+		const collapsed = this.plugin.settings.settingsCollapsed;
+		return FL_SECTION_IDS.every((id) => collapsed[id] === true);
+	}
+
+	/** 顶部工具行：标题 + 标语（左）+ 一键折叠按钮（右，全部折叠 / 全部展开）。
+	 *  注意 render 回调每次渲染都会重跑：先清掉上次遗留的内容，只重建一份（否则会累积重复） */
+	private heroRow(): SettingDefinition {
+		return {
+			name: "",
+			searchable: false,
+			render: (setting) => {
+				this.scheduleEnhance();
+				setting.settingEl.addClass("fl-hero-row");
+				setting.settingEl.querySelectorAll(":scope > .fl-hero").forEach((el) => el.remove());
+				const hero = setting.settingEl.createDiv({ cls: "fl-hero" });
+				const text = hero.createDiv({ cls: "fl-hero-text" });
+				text.createDiv({ cls: "fl-hero-title", text: "Feishu Lite" });
+				text.createDiv({ cls: "fl-hero-sub", text: t.hero.tagline });
+				const btn = hero.createEl("button", {
+					cls: "fl-foldall",
+					text: this.allFolded() ? t.hero.expandAll : t.hero.collapseAll,
+				});
+				btn.addEventListener("click", () => this.toggleAll(btn));
+			},
+		};
+	}
+
+	/** 一键全部折叠 / 展开：写设置 + 整页重渲染取齐；按钮文案就地刷新（不依赖重渲染时序） */
+	private toggleAll(btn: HTMLElement): void {
+		const s = this.plugin.settings;
+		if (this.allFolded()) s.settingsCollapsed = {};
+		else for (const id of FL_SECTION_IDS) s.settingsCollapsed[id] = true;
+		void this.plugin.saveSettings();
+		btn.setText(this.allFolded() ? t.hero.expandAll : t.hero.collapseAll);
+		this.update();
+	}
+
+	/** 折叠 / 展开单个分区：即时切视效（不整页重渲染，避免滚动跳动），状态落盘（与旧版设置页行为一致） */
+	private toggleSection(id: string, group: HTMLElement, head: HTMLElement): void {
+		const collapsed = !group.hasClass("is-collapsed");
+		group.toggleClass("is-collapsed", collapsed);
+		if (collapsed) this.plugin.settings.settingsCollapsed[id] = true;
+		else delete this.plugin.settings.settingsCollapsed[id];
+		void this.plugin.saveSettings();
+		head.setAttribute("aria-expanded", String(!collapsed));
+	}
+
+	/** 渲染后增强（图标 / 折叠交互 / 状态对齐）：微任务 + 下一帧各跑一次，幂等保证整页渲染完成后再套用 */
+	private scheduleEnhance(): void {
+		queueMicrotask(() => this.enhanceSections());
+		window.requestAnimationFrame(() => this.enhanceSections());
+	}
+
+	private enhanceSections(): void {
+		const container = this.containerEl;
+		if (!container) return;
+		container.addClass("fl-settings");
+
+		// 分组 → 分区 id：以标题文本回钉（搜索过滤后序号会变，文本稳定）；顺序仅作兜底
+		const byTitle = new Map<string, string>([
+			[t.groups.paste, "paste"],
+			[t.groups.grid, "grid"],
+			[t.groups.imageTools, "imageTools"],
+			[t.groups.library, "library"],
+			[t.groups.editor, "editor"],
+			[t.groups.comments, "comments"],
+			[t.groups.highlight, "highlight"],
+			[t.groups.reading, "reading"],
+			[t.groups.maintenance, "maintenance"],
+		]);
+		const groups = Array.from(container.querySelectorAll<HTMLElement>(".setting-group")).filter((g) =>
+			g.querySelector(":scope > .setting-item-heading")
+		);
+		groups.forEach((group, index) => {
+			const head = group.querySelector<HTMLElement>(":scope > .setting-item-heading");
+			if (!head) return;
+			const title = (head.querySelector(".setting-item-name")?.textContent ?? "").trim();
+			const id = byTitle.get(title) ?? FL_SECTION_IDS[index] ?? `sec${index}`;
+
+			// 分区图标（一次注入；重渲染后标题行是全新元素，会再次注入）
+			if (!head.querySelector(".fl-sec-icon")) {
+				const icon = head.createDiv({ cls: "fl-sec-icon" });
+				setIcon(icon, FL_SECTIONS.find((s) => s.id === id)?.icon ?? "dot");
+				head.prepend(icon);
+			}
+			// 点击标题行 = 折叠 / 展开（dataset 防给同一元素重复绑定：微任务与下一帧各扫一次）
+			if (head.dataset.flFold !== "1") {
+				head.dataset.flFold = "1";
+				head.addEventListener("click", () => this.toggleSection(id, group, head));
+			}
+			// 状态对齐：以设置为准（定义侧 cls 负责首帧，这里兜底搜索过滤等非整页渲染的场景）
+			group.toggleClass("is-collapsed", this.isCollapsed(id) && !this.searchActive());
+			head.setAttribute("aria-expanded", String(!group.hasClass("is-collapsed")));
+		});
+	}
+
 	// ---------- 设置页定义 ----------
 
 	getSettingDefinitions(): SettingDefinitionItem[] {
 		const folder = attachmentFolder(this.app);
 		return [
+			this.heroRow(),
 			{
 				type: "group",
 				heading: t.groups.paste,
+				cls: this.sectionCls("paste"),
 				items: [
 					{
 						name: t.paste.rename.name,
@@ -407,6 +563,7 @@ export class FlSettingTab extends PluginSettingTab {
 			{
 				type: "group",
 				heading: t.groups.grid,
+				cls: this.sectionCls("grid"),
 				items: [
 					{
 						name: t.grid.columns.name,
@@ -452,10 +609,8 @@ export class FlSettingTab extends PluginSettingTab {
 						searchable: false,
 						render: (setting) => {
 							setting.settingEl.addClass("fl-grid-preview-row");
-							const preview = setting.controlEl.createDiv({ cls: "fl-grid-preview" });
-							preview.createDiv();
-							preview.createDiv();
-							preview.createDiv();
+							this.previewEl = setting.controlEl.createDiv({ cls: "fl-grid-preview" });
+							this.paintGridPreview();
 						},
 					},
 					{
@@ -473,6 +628,7 @@ export class FlSettingTab extends PluginSettingTab {
 			{
 				type: "group",
 				heading: t.groups.imageTools,
+				cls: this.sectionCls("imageTools"),
 				items: [
 					{
 						name: t.imageTools.toolbar.name,
@@ -489,6 +645,7 @@ export class FlSettingTab extends PluginSettingTab {
 			{
 				type: "group",
 				heading: t.groups.library,
+				cls: this.sectionCls("library"),
 				items: [
 					{
 						name: t.library.scope.name,
@@ -517,6 +674,7 @@ export class FlSettingTab extends PluginSettingTab {
 			{
 				type: "group",
 				heading: t.groups.editor,
+				cls: this.sectionCls("editor"),
 				items: [
 					{
 						name: t.editor.toolbar.name,
@@ -538,6 +696,7 @@ export class FlSettingTab extends PluginSettingTab {
 			{
 				type: "group",
 				heading: t.groups.comments,
+				cls: this.sectionCls("comments"),
 				items: [
 					{
 						name: t.comments.enabled.name,
@@ -555,18 +714,30 @@ export class FlSettingTab extends PluginSettingTab {
 			{
 				type: "group",
 				heading: t.groups.highlight,
+				cls: this.sectionCls("highlight"),
 				items: [
 					{
 						name: t.highlight.livePreview.name,
 						desc: t.highlight.livePreview.desc,
 						control: { type: "toggle", key: "lpHighlight" },
 					},
-					...HL_COLORS.map(
-						(c): SettingDefinition => ({
-							name: (t.highlight.colors as Record<string, string>)[c.value] ?? c.label,
-							control: { type: "color", key: `hl.${c.value}` },
-						})
-					),
+					{
+						name: t.highlight.colorsRow.name,
+						desc: t.highlight.colorsRow.desc,
+						render: (setting) => {
+							setting.settingEl.addClass("fl-hl-colors-row");
+							const wrap = setting.controlEl.createDiv({ cls: "fl-hl-colors" });
+							for (const c of HL_COLORS) {
+								const label = (t.highlight.colors as Record<string, string>)[c.value] ?? c.label;
+								const input = wrap.createEl("input", { type: "color" });
+								input.title = label; // 颜色名走悬停提示，避免行里再排一列小字
+								input.value = String(this.getControlValue(`hl.${c.value}`));
+								input.addEventListener("input", () => {
+									void this.setControlValue(`hl.${c.value}`, input.value);
+								});
+							}
+						},
+					},
 					{
 						name: t.highlight.restoreColors,
 						action: () => {
@@ -581,6 +752,7 @@ export class FlSettingTab extends PluginSettingTab {
 			{
 				type: "group",
 				heading: t.groups.reading,
+				cls: this.sectionCls("reading"),
 				items: [
 					{
 						name: t.reading.codePretty.name,
@@ -612,6 +784,7 @@ export class FlSettingTab extends PluginSettingTab {
 			{
 				type: "group",
 				heading: t.groups.maintenance,
+				cls: this.sectionCls("maintenance"),
 				items: [
 					{
 						name: t.maintenance.reset.name,

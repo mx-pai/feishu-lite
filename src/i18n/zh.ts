@@ -13,6 +13,11 @@ export const zh: Dict = {
 		reading: "阅读 · 美化与导航",
 		maintenance: "维护",
 	},
+	hero: {
+		tagline: "文档增强 · 批注 / 图片 / 高亮 / 阅读",
+		collapseAll: "全部折叠",
+		expandAll: "全部展开",
+	},
 	paste: {
 		rename: {
 			name: "粘贴自动命名",
@@ -158,6 +163,10 @@ export const zh: Dict = {
 			blue: "蓝色",
 			purple: "紫色",
 			gray: "灰色",
+		},
+		colorsRow: {
+			name: "高亮颜色",
+			desc: "点色块即可修改：红 / 橙 / 黄 / 绿 / 蓝 / 紫 / 灰",
 		},
 		restoreColors: "恢复默认配色",
 	},

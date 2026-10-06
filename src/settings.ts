@@ -1,10 +1,12 @@
-import { App, Notice, PluginSettingTab, requireApiVersion, Setting, setIcon } from "obsidian";
+import { App, Notice, PluginSettingTab } from "obsidian";
+import type { SettingDefinition, SettingDefinitionItem } from "obsidian";
 import type FeishuLitePlugin from "./main";
 import { buildImageName } from "./naming";
 import type { DateStyle } from "./naming";
 import { HL_COLORS } from "./highlight";
 import { showTocPanel, syncToc } from "./toc";
 import { clearReadPositions } from "./read-position";
+import { t } from "./i18n";
 
 export interface FlSettings {
 	commentsEnabled: boolean;
@@ -66,8 +68,6 @@ export interface FlSettings {
 	compressQuality: number;
 	/** 最长边像素，超过等比缩小；0 = 不限 */
 	compressMaxEdge: number;
-	/** 设置页分区折叠状态（section id → 是否收起；缺省展开） */
-	settingsCollapsed: Record<string, boolean>;
 }
 
 export const DEFAULT_SETTINGS: FlSettings = {
@@ -103,11 +103,7 @@ export const DEFAULT_SETTINGS: FlSettings = {
 	compressFormat: "webp",
 	compressQuality: 80,
 	compressMaxEdge: 1600,
-	settingsCollapsed: {},
 };
-
-/** 设置页分区 id（折叠状态键 + 「全部折叠」用） */
-const SECTION_IDS = ["naming", "grid", "editor", "annotations", "highlight", "read", "tools", "reset"];
 
 /** 嵌套表字段的拷贝：类型不符（旧数据 / 损坏数据）时回落到默认值的拷贝 */
 function cloneRecord<T extends Record<string, unknown>>(value: unknown, fallback: T): T {
@@ -117,8 +113,8 @@ function cloneRecord<T extends Record<string, unknown>>(value: unknown, fallback
 
 /**
  * 载入 / 重置用的归一化：默认值整体深拷贝后与已存数据合并。
- * 关键点：嵌套对象（readPositions / customHighlightColors / settingsCollapsed）绝不与
- * DEFAULT_SETTINGS 共享引用——否则运行期写入会写脏默认值，「恢复默认」就恢复不出来。
+ * 关键点：嵌套对象（readPositions / customHighlightColors）绝不与 DEFAULT_SETTINGS 共享引用——
+ * 否则运行期写入会写脏默认值，「恢复默认」就恢复不出来。
  */
 export function normalizeSettings(data: Partial<FlSettings> | null): FlSettings {
 	const base = JSON.parse(JSON.stringify(DEFAULT_SETTINGS)) as FlSettings;
@@ -128,7 +124,6 @@ export function normalizeSettings(data: Partial<FlSettings> | null): FlSettings 
 		...data,
 		readPositions: cloneRecord(data.readPositions, base.readPositions),
 		customHighlightColors: cloneRecord(data.customHighlightColors, base.customHighlightColors),
-		settingsCollapsed: cloneRecord(data.settingsCollapsed, base.settingsCollapsed),
 	};
 }
 
@@ -185,547 +180,448 @@ function attachmentFolder(app: App): string {
 	}
 }
 
+/**
+ * 设置页（Obsidian 1.13+ 声明式设置）：
+ * - 全部界面由 getSettingDefinitions() 描述（原生外观 + 全局设置搜索）；
+ *   官方迁移指南（Path A）要求 minAppVersion ≥ 1.13.0 后移除 display()
+ * - 控件的读写走 getControlValue / setControlValue 覆写：写回统一走 plugin.saveSettings()
+ *   （落盘 + CSS 变量 + 编辑器重绘），并补设置项副作用（批注刷新 / 工具条收起 / 目录联动）
+ * - 文案全部来自 src/i18n（中文 / 英文按 Obsidian 界面语言自动选择）
+ */
 export class FlSettingTab extends PluginSettingTab {
+	icon = "feather";
+
 	private plugin: FeishuLitePlugin;
+	private colorTimer: number | null = null;
 
 	constructor(app: App, plugin: FeishuLitePlugin) {
 		super(app, plugin);
 		this.plugin = plugin;
 	}
 
-	/** 刷新设置页：1.13+ 走 update()；更早版本回落到 display()（minAppVersion < 1.13 时的合法路径） */
-	private refresh(): void {
-		const tab = this as unknown as { update?: () => void; display?: () => void };
-		if (typeof tab.update === "function") tab.update();
-		else tab.display?.();
+	// ---------- 声明式控件的值通道 ----------
+
+	/** 读取：普通键直接读设置字段；hl.* 读自定义高亮配色（缺省回落到内置色） */
+	getControlValue(key: string): unknown {
+		const s = this.plugin.settings;
+		if (key.startsWith("hl.")) {
+			const name = key.slice(3);
+			return s.customHighlightColors[name] ?? HL_DEFAULT_HEX[name] ?? "#888888";
+		}
+		return (s as unknown as Record<string, unknown>)[key];
 	}
 
-	/** 分区卡片：图标 + 标题（点标题行可折叠 / 展开）+ 说明；返回卡体（该区设置项都挂在它下面）。
-	 *  折叠状态存设置（settingsCollapsed），跨会话记住 */
-	private section(id: string, icon: string, title: string, desc: string): HTMLElement {
-		const wrap = this.containerEl.createDiv({ cls: "fl-sec" });
-		const head = wrap.createDiv({ cls: "fl-sec-head" });
-		setIcon(head.createDiv({ cls: "fl-sec-icon" }), icon);
-		head.createDiv({ cls: "fl-sec-title", text: title });
-		const chev = head.createDiv({ cls: "fl-sec-chev" });
-		const body = wrap.createDiv({ cls: "fl-sec-body" });
-		body.createDiv({ cls: "fl-sec-desc", text: desc });
-		// 只刷视觉（初值 + 切换共用）；落盘单独走保存，渲染不写设置
-		const setFold = (on: boolean): void => {
-			wrap.toggleClass("is-collapsed", on);
-			setIcon(chev, on ? "chevron-right" : "chevron-down");
-			head.setAttribute("aria-label", on ? `展开「${title}」` : `收起「${title}」`);
-		};
-		setFold(this.plugin.settings.settingsCollapsed[id] === true);
-		head.addEventListener("click", () => {
-			const on = !(this.plugin.settings.settingsCollapsed[id] === true);
-			setFold(on);
-			if (on) this.plugin.settings.settingsCollapsed[id] = true;
-			else delete this.plugin.settings.settingsCollapsed[id];
-			void this.plugin.saveSettings();
-		});
-		return body;
+	/** 写入：转型 / 夹取后落盘；取色器拖动只做即时预览 + 节流落盘（避免高频派发编辑器事务）。 */
+	setControlValue(key: string, value: unknown): void | Promise<void> {
+		if (key.startsWith("hl.")) {
+			const name = key.slice(3);
+			if (typeof value === "string") {
+				this.plugin.settings.customHighlightColors = {
+					...this.plugin.settings.customHighlightColors,
+					[name]: value,
+				};
+				applyCssVars(this.plugin.settings);
+				this.persistColorsSoon();
+			}
+			return;
+		}
+		this.writeSetting(key, value);
+		return this.commit(key);
 	}
 
-	display(): void {
-		const { containerEl } = this;
-		containerEl.empty();
-		containerEl.addClass("fl-settings");
+	/** 逐键转型写入（下拉框给字符串、数字控件给数字，统一在这里夹取到合法范围） */
+	private writeSetting(key: string, value: unknown): void {
+		const s = this.plugin.settings as unknown as Record<string, unknown>;
+		switch (key) {
+			case "defaultColumns":
+				s.defaultColumns = Math.min(4, Math.max(2, Math.floor(Number(value)) || 3));
+				break;
+			case "gridRowHeight":
+				s.gridRowHeight = Math.max(0, Math.floor(Number(value)) || 0);
+				break;
+			case "gridGap":
+				s.gridGap = Math.min(40, Math.max(0, Math.floor(Number(value)) || 0));
+				break;
+			case "gridRadius":
+				s.gridRadius = Math.min(40, Math.max(0, Math.floor(Number(value)) || 0));
+				break;
+			case "compressQuality":
+				s.compressQuality = Math.min(100, Math.max(10, Math.floor(Number(value)) || 80));
+				break;
+			case "compressMaxEdge":
+				s.compressMaxEdge = Math.max(0, Math.floor(Number(value)) || 0);
+				break;
+			case "datePattern":
+				s.datePattern = value === "dash" || value === "short" ? value : "compact";
+				break;
+			case "compressFormat":
+				s.compressFormat = value === "jpeg" ? "jpeg" : "webp";
+				break;
+			case "pickerScope":
+				s.pickerScope = value === "attachments" ? "attachments" : "all";
+				break;
+			case "pickerSort":
+				s.pickerSort = value === "oldest" || value === "name" ? value : "newest";
+				break;
+			case "commentAuthor":
+				s.commentAuthor =
+					(typeof value === "string" ? value.trim() : "") || DEFAULT_SETTINGS.commentAuthor;
+				break;
+			default:
+				// 布尔开关与其余字符串字段：原样写入
+				s[key] = value;
+		}
+	}
 
-		const hero = containerEl.createDiv({ cls: "fl-hero" });
-		const heroText = hero.createDiv({ cls: "fl-hero-text" });
-		heroText.createDiv({ cls: "fl-hero-title", text: "Feishu Lite" });
-		heroText.createDiv({ cls: "fl-hero-sub", text: "文档增强 · 批注 / 图片 / 高亮 / 阅读" });
-		// 一键收起 / 展开全部分区（找某一项时不用来回滑动）
-		const allFolded = SECTION_IDS.every((id) => this.plugin.settings.settingsCollapsed[id] === true);
-		const foldAll = hero.createEl("button", {
-			cls: "fl-foldall",
-			text: allFolded ? "全部展开" : "全部折叠",
-		});
-		foldAll.setAttribute("aria-label", allFolded ? "展开所有分区" : "收起所有分区");
-		foldAll.addEventListener("click", () => {
-			if (allFolded) this.plugin.settings.settingsCollapsed = {};
-			else for (const id of SECTION_IDS) this.plugin.settings.settingsCollapsed[id] = true;
-			void this.plugin.saveSettings();
-			this.refresh();
-		});
+	/** 写回后的统一收尾：落盘 + 设置项副作用 + 可见性谓词重估 */
+	private async commit(key: string): Promise<void> {
+		await this.plugin.saveSettings();
+		switch (key) {
+			case "commentsEnabled":
+				this.plugin.comments.schedule();
+				break;
+			case "imageTools":
+				this.plugin.imageTools.closeToolbar();
+				break;
+			case "tocVisible":
+				if (this.plugin.settings.tocVisible) showTocPanel(this.plugin);
+				else syncToc(this.plugin);
+				break;
+			case "datePattern":
+				this.update(); // 命名模板行的示例要跟着新日期格式重绘
+				break;
+		}
+		this.refreshDomState();
+	}
 
-		this.renderNaming(this.section("naming", "image", "图片 · 粘贴与命名", "粘贴 / 拖入图片时自动命名、压缩（落点跟随库的附件设置）"));
-		this.renderGrid(this.section("grid", "columns-2", "图片 · 分栏", "斜杠 /tpfl、图库插入与多图粘贴的默认分栏样式"));
-		this.renderEditor(this.section("editor", "pencil", "编辑 · 增强", "划词工具条与表格 / 列表操作增强（原插件仍启用时自动让位）"));
-		this.renderAnnotations(this.section("annotations", "message-square", "编辑 · 批注与图片工具", "选中文字留批注（存于笔记内）；点击图片弹出工具条调整版式"));
-		this.renderHighlight(this.section("highlight", "highlighter", "编辑 · 文本高亮", "=={颜色}文字== 的渲染开关与 7 色配色"));
-		this.renderReading(this.section("read", "book-open", "阅读 · 美化与导航", "阅读视图的呈现与定位：代码 / 表格 / 图片美化、浮动目录、阅读位置"));
-		this.renderTools(this.section("tools", "images", "图片 · 图库与附件清理", "图库弹窗的搜索范围与排序；全库无引用图片的自动清理"));
-		this.renderReset(this.section("reset", "rotate-ccw", "维护", "所有选项回到初始值；不影响已写入笔记的内容"));
+	/** 取色器拖动：400ms 后落盘（与旧界面的节流策略一致；拖动过程只走 CSS 变量即时预览） */
+	private persistColorsSoon(): void {
+		if (this.colorTimer !== null) window.clearTimeout(this.colorTimer);
+		this.colorTimer = window.setTimeout(() => {
+			this.colorTimer = null;
+			void this.plugin.persistSettings();
+		}, 400);
 	}
 
 	/** 用当前设置和当前笔记名生成一个命名示例，用于「命名模板」实时预览 */
 	private previewName(): string {
-		const note = this.app.workspace.getActiveFile()?.basename || "笔记";
+		const note = this.app.workspace.getActiveFile()?.basename || t.paste.pattern.noteFallback;
 		const s = this.plugin.settings;
 		return buildImageName(s.namePattern || DEFAULT_SETTINGS.namePattern, note, 1, "png", s.datePattern);
 	}
 
-	// ---------------- 图片 · 粘贴与命名 ----------------
-
-	private renderNaming(el: HTMLElement): void {
-		new Setting(el)
-			.setName("粘贴自动命名")
-			.setDesc("粘贴 / 拖入图片时，按命名模板重命名后存入附件目录（跟随库设置）；关闭则完全让位给其它插件")
-			.addToggle((t) =>
-				t.setValue(this.plugin.settings.renameOnPaste).onChange(async (v) => {
-					this.plugin.settings.renameOnPaste = v;
-					await this.plugin.saveSettings();
-				})
-			);
-
-		const nameItem = new Setting(el)
-			.setName("命名模板")
-			.setDesc("可用变量：{note} 笔记名 · {date} 日期 · {time} 时间 · {i} 序号");
-		const previewEl = nameItem.descEl.createDiv({ cls: "fl-setting-preview" });
-		const refreshPreview = () => previewEl.setText(`示例：${this.previewName()}`);
-		refreshPreview();
-		nameItem.addText((t) =>
-			t
-				.setPlaceholder(DEFAULT_SETTINGS.namePattern)
-				.setValue(this.plugin.settings.namePattern)
-				.onChange(async (v) => {
-					this.plugin.settings.namePattern = v.trim() || DEFAULT_SETTINGS.namePattern;
-					await this.plugin.saveSettings();
-					refreshPreview();
-				})
-		);
-
-		new Setting(el)
-			.setName("日期格式")
-			.setDesc("「命名模板」里 {date} 的写法")
-			.addDropdown((d) =>
-				d
-					.addOption("compact", "紧凑：20261003")
-					.addOption("dash", "带横线：2026-10-03")
-					.addOption("short", "短年份：261003")
-					.setValue(this.plugin.settings.datePattern)
-					.onChange(async (v) => {
-						this.plugin.settings.datePattern = v === "dash" || v === "short" ? v : "compact";
-						await this.plugin.saveSettings();
-						refreshPreview();
-					})
-			);
-
-		new Setting(el)
-			.setName("粘贴自动压缩")
-			.setDesc("粘贴 / 拖入时先压缩再保存（转后更大、失败、GIF / SVG 自动保留原图）")
-			.addToggle((t) =>
-				t.setValue(this.plugin.settings.compressOnPaste).onChange(async (v) => {
-					this.plugin.settings.compressOnPaste = v;
-					await this.plugin.saveSettings();
-				})
-			);
-
-		new Setting(el)
-			.setName("压缩格式")
-			.setDesc("WebP 支持透明、体积更小；JPEG 兼容性最好但没有透明通道")
-			.addDropdown((d) =>
-				d
-					.addOption("webp", "WebP（推荐）")
-					.addOption("jpeg", "JPEG")
-					.setValue(this.plugin.settings.compressFormat)
-					.onChange(async (v) => {
-						this.plugin.settings.compressFormat = v === "jpeg" ? "jpeg" : "webp";
-						await this.plugin.saveSettings();
-					})
-			);
-
-		const qualityItem = new Setting(el).setName("压缩质量").setDesc("越低体积越小；80 左右观感基本无损");
-		qualityItem.addSlider((s) =>
-			s
-				.setLimits(10, 100, 1)
-				.setValue(this.plugin.settings.compressQuality)
-				.onChange(async (v) => {
-					this.plugin.settings.compressQuality = v;
-					qualityItem.controlEl.querySelector<HTMLElement>(".fl-slider-val")?.setText(String(v));
-					await this.plugin.saveSettings();
-				})
-		);
-		qualityItem.controlEl.createSpan({ cls: "fl-slider-val", text: String(this.plugin.settings.compressQuality) });
-
-		new Setting(el)
-			.setName("最长边（px）")
-			.setDesc("超过则等比缩小；0 = 不限制尺寸（截图建议 1600 左右）")
-			.addText((t) =>
-				t
-					.setPlaceholder("1600")
-					.setValue(String(this.plugin.settings.compressMaxEdge))
-					.onChange(async (v) => {
-						this.plugin.settings.compressMaxEdge = Math.max(0, parseInt(v, 10) || 0);
-						await this.plugin.saveSettings();
-					})
-			);
+	/** 恢复默认设置：先确认，再整体归一化 + 清阅读位置 + 落盘 + 界面联动 */
+	private async resetToDefaults(): Promise<void> {
+		const ok = await this.plugin.confirmAction(t.maintenance.confirmTitle, t.maintenance.confirmMessage);
+		if (!ok) return;
+		// 走归一化函数取默认值：嵌套对象都是深拷贝，恢复后不会与 DEFAULT_SETTINGS 再共享引用
+		Object.assign(this.plugin.settings, normalizeSettings(null));
+		clearReadPositions(); // 阅读位置表已换新引用：模块内 map 同步清空，防止旧记录被写回
+		await this.plugin.saveSettings();
+		syncToc(this.plugin); // 浮动目录可见性可能变化：立即生效
+		this.update();
+		new Notice(t.notices.defaultsRestored);
 	}
 
-	// ---------------- 图片 · 分栏 ----------------
+	// ---------- 设置页定义 ----------
 
-	private renderGrid(el: HTMLElement): void {
-		new Setting(el)
-			.setName("默认分栏数")
-			.setDesc("斜杠菜单 /tpfl、图库多选插入、多图粘贴自动成栏的默认列数")
-			.addDropdown((d) =>
-				d
-					.addOption("2", "2 栏")
-					.addOption("3", "3 栏")
-					.addOption("4", "4 栏")
-					.setValue(String(this.plugin.settings.defaultColumns))
-					.onChange(async (v) => {
-						this.plugin.settings.defaultColumns = parseInt(v, 10) || 3;
-						await this.plugin.saveSettings();
-					})
-			);
-
-		new Setting(el)
-			.setName("多图粘贴自动成栏")
-			.setDesc("一次粘贴 / 拖入多张图片时，自动包成图片分栏网格")
-			.addToggle((t) =>
-				t.setValue(this.plugin.settings.autoGridOnMultiPaste).onChange(async (v) => {
-					this.plugin.settings.autoGridOnMultiPaste = v;
-					await this.plugin.saveSettings();
-				})
-			);
-
-		// 统一行高：预设档位（点一下即切换）+ 自定义数值
-		const rowItem = new Setting(el)
-			.setName("统一行高")
-			.setDesc("0 = 自适应（每张图按自身比例）；大于 0 时所有图片等高裁切，更整齐（飞书风格）");
-		const presetRow = rowItem.settingEl.createDiv({ cls: "fl-preset-row" });
-		for (const [label, value] of [
-			["自适应", 0],
-			["300", 300],
-			["400", 400],
-			["500", 500],
-		] as [string, number][]) {
-			const chip = presetRow.createEl("button", { text: label, cls: "fl-chip" });
-			chip.onclick = async () => {
-				this.plugin.settings.gridRowHeight = value;
-				await this.plugin.saveSettings();
-				this.refresh();
-			};
-		}
-		rowItem.addText((t) =>
-			t
-				.setPlaceholder("0")
-				.setValue(String(this.plugin.settings.gridRowHeight))
-				.onChange(async (v) => {
-					this.plugin.settings.gridRowHeight = Math.max(0, parseInt(v, 10) || 0);
-					await this.plugin.saveSettings();
-				})
-		);
-
-		const gapItem = new Setting(el).setName("分栏间距").setDesc("图片之间的空隙（px）");
-		gapItem.addSlider((s) =>
-			s
-				.setLimits(0, 40, 1)
-				.setValue(this.plugin.settings.gridGap)
-				.onChange(async (v) => {
-					this.plugin.settings.gridGap = v;
-					gapItem.controlEl.querySelector<HTMLElement>(".fl-slider-val")?.setText(`${v} px`);
-					await this.plugin.saveSettings();
-				})
-		);
-		gapItem.controlEl.createSpan({ cls: "fl-slider-val", text: `${this.plugin.settings.gridGap} px` });
-
-		const radiusItem = new Setting(el).setName("圆角").setDesc("图片圆角半径（px）");
-		radiusItem.addSlider((s) =>
-			s
-				.setLimits(0, 40, 1)
-				.setValue(this.plugin.settings.gridRadius)
-				.onChange(async (v) => {
-					this.plugin.settings.gridRadius = v;
-					radiusItem.controlEl.querySelector<HTMLElement>(".fl-slider-val")?.setText(`${v} px`);
-					await this.plugin.saveSettings();
-				})
-		);
-		radiusItem.controlEl.createSpan({ cls: "fl-slider-val", text: `${this.plugin.settings.gridRadius} px` });
-
-		el.createEl("p", { text: "效果预览（随上方数值实时变化）", cls: "setting-item-description fl-preview-cap" });
-		const preview = el.createDiv({ cls: "fl-grid-preview" });
-		preview.createDiv();
-		preview.createDiv();
-		preview.createDiv();
-
-		new Setting(el)
-			.setName("空分栏占位提示")
-			.setDesc("未贴图的分栏显示虚线框和「把图片粘贴或拖进来」提示；关闭后空分栏显示为空白")
-			.addToggle((t) =>
-				t.setValue(this.plugin.settings.showEmptyGridHint).onChange(async (v) => {
-					this.plugin.settings.showEmptyGridHint = v;
-					await this.plugin.saveSettings();
-				})
-			);
-
-		new Setting(el)
-			.setName("编辑视图 · 图片行缩略图")
-			.setDesc("编辑视图点到分栏块内部时，未在编辑的图片行显示小缩略图（不露文件名）；点到哪行哪行恢复原文")
-			.addToggle((t) =>
-				t.setValue(this.plugin.settings.gridSourceThumbs).onChange(async (v) => {
-					this.plugin.settings.gridSourceThumbs = v;
-					await this.plugin.saveSettings();
-				})
-			);
-	}
-
-	// ---------------- 编辑 · 增强（炼化模块） ----------------
-
-	private renderEditor(el: HTMLElement): void {
-		new Setting(el)
-			.setName("划词工具条")
-			.setDesc("编辑视图划词显示工具条：单行支持高亮、行内代码和删除线，段落内跨行选区支持批注")
-			.addToggle((t) =>
-				t.setValue(this.plugin.settings.selectToolbar).onChange(async (v) => {
-					this.plugin.settings.selectToolbar = v;
-					await this.plugin.saveSettings();
-				})
-			);
-
-		el.createEl("p", {
-			text: "以下为「炼化」自其它插件的核心能力：只要对应原插件仍在启用就自动让位（不重复接管）；停用原插件后由本插件无缝接手。",
-			cls: "setting-item-description fl-preview-cap",
-		});
-
-		new Setting(el)
-			.setName("表格增强")
-			.setDesc("表格内 Tab / Shift+Tab / Enter 跳格，每次跳格自动对齐格式化；末格跳格自动补新行。原插件：Advanced Tables")
-			.addToggle((t) =>
-				t.setValue(this.plugin.settings.tableAssist).onChange(async (v) => {
-					this.plugin.settings.tableAssist = v;
-					await this.plugin.saveSettings();
-				})
-			);
-
-		new Setting(el)
-			.setName("列表增强")
-			.setDesc("Cmd+Shift+↑ / ↓ 整体移动列表项（含整棵子树，与相邻同级项换位）。原插件：Outliner")
-			.addToggle((t) =>
-				t.setValue(this.plugin.settings.listAssist).onChange(async (v) => {
-					this.plugin.settings.listAssist = v;
-					await this.plugin.saveSettings();
-				})
-			);
-	}
-
-	// ---------------- 编辑 · 批注与图片工具 ----------------
-	private renderAnnotations(el: HTMLElement): void {
-		new Setting(el).setName("笔记批注").setDesc("选中文字后使用工具条留批注，桌面侧栏与手机底部面板查看线程；数据保存在笔记内").addToggle(t => t.setValue(this.plugin.settings.commentsEnabled).onChange(async value => { this.plugin.settings.commentsEnabled = value; await this.plugin.saveSettings(); this.plugin.comments.schedule(); }));
-		new Setting(el).setName("批注署名").addText(t => t.setValue(this.plugin.settings.commentAuthor).onChange(async value => { this.plugin.settings.commentAuthor = value.trim() || "我"; await this.plugin.saveSettings(); }));
-		new Setting(el).setName("图片工具条").setDesc("点击图片调整宽度、图注、分栏和顺序，或打开裁剪与标注；原图保留，编辑生成新图片").addToggle(t => t.setValue(this.plugin.settings.imageTools).onChange(async value => { this.plugin.settings.imageTools = value; await this.plugin.saveSettings(); this.plugin.imageTools.closeToolbar(); }));
-	}
-
-	// ---------------- 编辑 · 文本高亮 ----------------
-
-	private renderHighlight(el: HTMLElement): void {
-		new Setting(el)
-			.setName("编辑视图渲染")
-			.setDesc("在 Live Preview 中渲染 =={颜色}文字== 语法（关闭则仅阅读视图渲染；改动重开笔记后完全生效）")
-			.addToggle((t) =>
-				t.setValue(this.plugin.settings.lpHighlight).onChange(async (v) => {
-					this.plugin.settings.lpHighlight = v;
-					await this.plugin.saveSettings();
-				})
-			);
-
-		const colorItem = new Setting(el)
-			.setName("自定义颜色")
-			.setDesc("点色块调整配色（半透明底色、深浅主题共用）；「全部恢复默认」还原内置 7 色");
-		colorItem.addButton((b) =>
-			b.setButtonText("全部恢复默认").onClick(async () => {
-				this.plugin.settings.customHighlightColors = {};
-				await this.plugin.saveSettings();
-				this.refresh();
-				new Notice("Feishu Lite：已恢复默认高亮配色");
-			})
-		);
-		const colorGrid = colorItem.settingEl.createDiv({ cls: "fl-color-grid" });
-		// 拖动取色器：只更新 body 上的 CSS 变量做即时预览（局部样式，不派发编辑器事务），落盘做节流
-		let persistTimer: number | null = null;
-		const persistSoon = (): void => {
-			if (persistTimer !== null) window.clearTimeout(persistTimer);
-			persistTimer = window.setTimeout(() => {
-				persistTimer = null;
-				void this.plugin.persistSettings();
-			}, 400);
-		};
-		for (const c of HL_COLORS) {
-			const cell = colorGrid.createDiv({ cls: "fl-color-cell" });
-			const input = cell.createEl("input", { attr: { type: "color" }, cls: "fl-color-input" });
-			input.value =
-				this.plugin.settings.customHighlightColors?.[c.value] ?? HL_DEFAULT_HEX[c.value] ?? "#888888";
-			input.oninput = () => {
-				this.plugin.settings.customHighlightColors[c.value] = input.value;
-				applyCssVars(this.plugin.settings);
-				persistSoon();
-			};
-			cell.createDiv({ cls: "fl-color-label", text: c.label });
-		}
-	}
-
-	// ---------------- 阅读 · 美化与导航（美化 / 浮动目录 / 阅读与写作） ----------------
-
-	private renderReading(el: HTMLElement): void {
-		el.createEl("p", {
-			text: "以下美化只作用于阅读视图（不影响编辑视图与他人共享的 Markdown 源文件）。",
-			cls: "setting-item-description fl-preview-cap",
-		});
-
-		new Setting(el)
-			.setName("代码块美化")
-			.setDesc("代码块右上角加语言徽标；4 行以上自动显示行号；复制按钮仅在系统未自带时补一个（关掉后重开笔记完全生效）")
-			.addToggle((t) =>
-				t.setValue(this.plugin.settings.codePretty).onChange(async (v) => {
-					this.plugin.settings.codePretty = v;
-					await this.plugin.saveSettings();
-				})
-			);
-
-		new Setting(el)
-			.setName("表格斑马纹")
-			.setDesc("表格隔行浅色底 + 鼠标悬停整行高亮；列对齐用命令「表格：切换列对齐（左/中/右）」")
-			.addToggle((t) =>
-				t.setValue(this.plugin.settings.tablePretty).onChange(async (v) => {
-					this.plugin.settings.tablePretty = v;
-					await this.plugin.saveSettings();
-				})
-			);
-
-		new Setting(el)
-			.setName("图片查看器")
-			.setDesc("点击图片 → 悬浮查看：滚轮缩放、拖拽平移、Esc / 点击空白关闭（阅读 / 编辑视图均可；视频 / 画布不受影响）")
-			.addToggle((t) =>
-				t.setValue(this.plugin.settings.imageLightbox).onChange(async (v) => {
-					this.plugin.settings.imageLightbox = v;
-					await this.plugin.saveSettings();
-				})
-			);
-
-		el.createDiv({ cls: "fl-subtitle", text: "浮动目录" });
-		el.createEl("p", {
-			text: "Feishu 式右侧悬浮大纲：滚动时自动高亮所在章节、点击条目跳转；只跟随当前激活的笔记。",
-			cls: "setting-item-description fl-preview-cap",
-		});
-
-		new Setting(el)
-			.setName("显示浮动目录")
-			.setDesc("命令「视图：显示 / 展开浮动目录」可随时唤出（建议绑快捷键）；面板默认收成右缘窄轨不遮正文，鼠标悬停自动展开；右上角「»」或本开关整体关闭。状态会记住")
-			.addToggle((t) =>
-				t.setValue(this.plugin.settings.tocVisible).onChange(async (v) => {
-					this.plugin.settings.tocVisible = v;
-					await this.plugin.saveSettings();
-					if (v) showTocPanel(this.plugin);
-					else syncToc(this.plugin);
-				})
-			);
-
-		el.createDiv({ cls: "fl-subtitle", text: "阅读与写作" });
-
-		new Setting(el)
-			.setName("记住阅读位置")
-			.setDesc("按笔记记住上次读到的位置，重开自动回到原位（只在阅读视图恢复；编辑视图的光标位置由 Obsidian 原生恢复）。仅桌面端生效：移动端不记录、不恢复")
-			.addToggle((t) =>
-				t.setValue(this.plugin.settings.rememberScroll).onChange(async (v) => {
-					this.plugin.settings.rememberScroll = v;
-					await this.plugin.saveSettings();
-				})
-			);
-
-		new Setting(el)
-			.setName("粘贴时自动美化中英混排")
-			.setDesc("粘贴文本时自动在中文与英文 / 数字间补一个空格（代码块、链接、公式内不处理）；命令「格式：中英混排美化（加空格）」可随时手动执行")
-			.addToggle((t) =>
-				t.setValue(this.plugin.settings.cjkPaste).onChange(async (v) => {
-					this.plugin.settings.cjkPaste = v;
-					await this.plugin.saveSettings();
-				})
-			);
-	}
-
-	// ---------------- 图片 · 图库与附件清理 ----------------
-
-	private renderTools(el: HTMLElement): void {
+	getSettingDefinitions(): SettingDefinitionItem[] {
 		const folder = attachmentFolder(this.app);
-		new Setting(el)
-			.setName("搜索范围")
-			.setDesc("图库弹窗（斜杠 /tp 或命令「从图库多选插入」）里显示哪些图片")
-			.addDropdown((d) =>
-				d
-					.addOption("all", "全部图片")
-					.addOption("attachments", folder ? `仅附件目录（${folder}）` : "仅附件目录")
-					.setValue(this.plugin.settings.pickerScope)
-					.onChange(async (v) => {
-						this.plugin.settings.pickerScope = v === "attachments" ? "attachments" : "all";
-						await this.plugin.saveSettings();
-					})
-			);
-
-		new Setting(el)
-			.setName("排序")
-			.setDesc("图库弹窗里图片的排列顺序")
-			.addDropdown((d) =>
-				d
-					.addOption("newest", "最新优先")
-					.addOption("oldest", "最旧优先")
-					.addOption("name", "文件名 A→Z")
-					.setValue(this.plugin.settings.pickerSort)
-					.onChange(async (v) => {
-						this.plugin.settings.pickerSort =
-							v === "oldest" || v === "name" ? v : "newest";
-						await this.plugin.saveSettings();
-					})
-			);
-
-		el.createDiv({ cls: "fl-subtitle", text: "附件自动清理" });
-		el.createEl("p", {
-			text: "图床自动管家（全自动、无需管理）：启动后约 15 秒清理「全库无任何引用且超过 24 小时」的图片附件，此后每 24 小时复查一次。清理结果跟随 Obsidian「删除文件」设置：系统回收站 / 库内回收站可找回；若该设置为「永久删除」，自动清理会整体跳过（不会自动永久删除文件），手动执行命令时会先弹窗确认，删除后无法找回。判定双保险：官方链接索引 + 全库文本兜底扫描（含隐藏文件）。",
-			cls: "setting-item-description fl-preview-cap",
-		});
-
-		new Setting(el)
-			.setName("自动清理未引用附件")
-			.setDesc("关闭后不再自动运行；命令「维护：清理未引用附件」仍可手动执行")
-			.addToggle((t) =>
-				t.setValue(this.plugin.settings.autoCleanAttachments).onChange(async (v) => {
-					this.plugin.settings.autoCleanAttachments = v;
-					await this.plugin.saveSettings();
-				})
-			);
-	}
-
-	// ---------------- 维护 · 恢复默认 ----------------
-
-	private renderReset(el: HTMLElement): void {
-		const item = new Setting(el)
-			.setName("恢复默认设置")
-			.setDesc("需要连点两次确认，防止误触");
-		item.addButton((b) => {
-			let armed = false;
-			let timer: number | null = null;
-			if (requireApiVersion("1.13.0")) b.setDestructive();
-			b.setButtonText("恢复默认").onClick(async () => {
-				if (!armed) {
-					armed = true;
-					b.setButtonText("再点一次确认");
-					timer = window.setTimeout(() => {
-						armed = false;
-						b.setButtonText("恢复默认");
-					}, 4000);
-					return;
-				}
-				if (timer !== null) window.clearTimeout(timer);
-				// 走归一化函数取默认值：嵌套对象都是深拷贝，恢复后不会与 DEFAULT_SETTINGS 再共享引用
-				Object.assign(this.plugin.settings, normalizeSettings(null));
-				clearReadPositions(); // 阅读位置表已换新引用：模块内 map 同步清空，防止旧记录被写回
-				await this.plugin.saveSettings();
-				syncToc(this.plugin); // 浮动目录可见性可能变化：立即生效
-				this.refresh();
-				new Notice("Feishu Lite：已恢复默认设置");
-			});
-		});
+		return [
+			{
+				type: "group",
+				heading: t.groups.paste,
+				items: [
+					{
+						name: t.paste.rename.name,
+						desc: t.paste.rename.desc,
+						control: { type: "toggle", key: "renameOnPaste" },
+					},
+					{
+						name: t.paste.pattern.name,
+						desc: t.paste.pattern.desc,
+						visible: () => this.plugin.settings.renameOnPaste,
+						render: (setting) => {
+							const preview = setting.descEl.createDiv({ cls: "fl-setting-preview" });
+							const refresh = (): void => preview.setText(t.paste.pattern.preview(this.previewName()));
+							refresh();
+							setting.addText((text) =>
+								text
+									.setPlaceholder(DEFAULT_SETTINGS.namePattern)
+									.setValue(this.plugin.settings.namePattern)
+									.onChange(async (value) => {
+										this.plugin.settings.namePattern =
+											value.trim() || DEFAULT_SETTINGS.namePattern;
+										await this.plugin.saveSettings();
+										refresh();
+									})
+							);
+						},
+					},
+					{
+						name: t.paste.datePattern.name,
+						desc: t.paste.datePattern.desc,
+						visible: () => this.plugin.settings.renameOnPaste,
+						control: {
+							type: "dropdown",
+							key: "datePattern",
+							options: t.paste.datePattern.options,
+						},
+					},
+					{
+						name: t.paste.compress.name,
+						desc: t.paste.compress.desc,
+						control: { type: "toggle", key: "compressOnPaste" },
+					},
+					{
+						name: t.paste.format.name,
+						desc: t.paste.format.desc,
+						visible: () => this.plugin.settings.compressOnPaste,
+						control: {
+							type: "dropdown",
+							key: "compressFormat",
+							options: t.paste.format.options,
+						},
+					},
+					{
+						name: t.paste.quality.name,
+						desc: t.paste.quality.desc,
+						visible: () => this.plugin.settings.compressOnPaste,
+						control: {
+							type: "slider",
+							key: "compressQuality",
+							min: 10,
+							max: 100,
+							step: 1,
+							displayFormat: (v) => `${v}`,
+						},
+					},
+					{
+						name: t.paste.maxEdge.name,
+						desc: t.paste.maxEdge.desc,
+						visible: () => this.plugin.settings.compressOnPaste,
+						control: { type: "number", key: "compressMaxEdge", min: 0, step: 10, placeholder: "1600" },
+					},
+				],
+			},
+			{
+				type: "group",
+				heading: t.groups.grid,
+				items: [
+					{
+						name: t.grid.columns.name,
+						desc: t.grid.columns.desc,
+						control: { type: "dropdown", key: "defaultColumns", options: t.grid.columns.options },
+					},
+					{
+						name: t.grid.autoWrap.name,
+						desc: t.grid.autoWrap.desc,
+						control: { type: "toggle", key: "autoGridOnMultiPaste" },
+					},
+					{
+						name: t.grid.rowHeight.name,
+						desc: t.grid.rowHeight.desc,
+						control: { type: "number", key: "gridRowHeight", min: 0, step: 10, placeholder: "0" },
+					},
+					{
+						name: t.grid.gap.name,
+						desc: t.grid.gap.desc,
+						control: {
+							type: "slider",
+							key: "gridGap",
+							min: 0,
+							max: 40,
+							step: 1,
+							displayFormat: (v) => `${v} px`,
+						},
+					},
+					{
+						name: t.grid.radius.name,
+						desc: t.grid.radius.desc,
+						control: {
+							type: "slider",
+							key: "gridRadius",
+							min: 0,
+							max: 40,
+							step: 1,
+							displayFormat: (v) => `${v} px`,
+						},
+					},
+					{
+						name: t.grid.preview,
+						searchable: false,
+						render: (setting) => {
+							setting.settingEl.addClass("fl-grid-preview-row");
+							const preview = setting.controlEl.createDiv({ cls: "fl-grid-preview" });
+							preview.createDiv();
+							preview.createDiv();
+							preview.createDiv();
+						},
+					},
+					{
+						name: t.grid.emptyHint.name,
+						desc: t.grid.emptyHint.desc,
+						control: { type: "toggle", key: "showEmptyGridHint" },
+					},
+					{
+						name: t.grid.sourceThumbs.name,
+						desc: t.grid.sourceThumbs.desc,
+						control: { type: "toggle", key: "gridSourceThumbs" },
+					},
+				],
+			},
+			{
+				type: "group",
+				heading: t.groups.imageTools,
+				items: [
+					{
+						name: t.imageTools.toolbar.name,
+						desc: t.imageTools.toolbar.desc,
+						control: { type: "toggle", key: "imageTools" },
+					},
+					{
+						name: t.imageTools.lightbox.name,
+						desc: t.imageTools.lightbox.desc,
+						control: { type: "toggle", key: "imageLightbox" },
+					},
+				],
+			},
+			{
+				type: "group",
+				heading: t.groups.library,
+				items: [
+					{
+						name: t.library.scope.name,
+						desc: t.library.scope.desc,
+						control: {
+							type: "dropdown",
+							key: "pickerScope",
+							options: {
+								all: t.library.scope.all,
+								attachments: t.library.scope.attachmentsOnly(folder),
+							},
+						},
+					},
+					{
+						name: t.library.sort.name,
+						desc: t.library.sort.desc,
+						control: { type: "dropdown", key: "pickerSort", options: t.library.sort.options },
+					},
+					{
+						name: t.library.clean.name,
+						desc: t.library.clean.desc,
+						control: { type: "toggle", key: "autoCleanAttachments" },
+					},
+				],
+			},
+			{
+				type: "group",
+				heading: t.groups.editor,
+				items: [
+					{
+						name: t.editor.toolbar.name,
+						desc: t.editor.toolbar.desc,
+						control: { type: "toggle", key: "selectToolbar" },
+					},
+					{
+						name: t.editor.table.name,
+						desc: t.editor.table.desc,
+						control: { type: "toggle", key: "tableAssist" },
+					},
+					{
+						name: t.editor.list.name,
+						desc: t.editor.list.desc,
+						control: { type: "toggle", key: "listAssist" },
+					},
+				],
+			},
+			{
+				type: "group",
+				heading: t.groups.comments,
+				items: [
+					{
+						name: t.comments.enabled.name,
+						desc: t.comments.enabled.desc,
+						control: { type: "toggle", key: "commentsEnabled" },
+					},
+					{
+						name: t.comments.author.name,
+						desc: t.comments.author.desc,
+						visible: () => this.plugin.settings.commentsEnabled,
+						control: { type: "text", key: "commentAuthor" },
+					},
+				],
+			},
+			{
+				type: "group",
+				heading: t.groups.highlight,
+				items: [
+					{
+						name: t.highlight.livePreview.name,
+						desc: t.highlight.livePreview.desc,
+						control: { type: "toggle", key: "lpHighlight" },
+					},
+					...HL_COLORS.map(
+						(c): SettingDefinition => ({
+							name: (t.highlight.colors as Record<string, string>)[c.value] ?? c.label,
+							control: { type: "color", key: `hl.${c.value}` },
+						})
+					),
+					{
+						name: t.highlight.restoreColors,
+						action: () => {
+							this.plugin.settings.customHighlightColors = {};
+							void this.plugin.saveSettings();
+							this.update();
+							new Notice(t.notices.colorsRestored);
+						},
+					},
+				],
+			},
+			{
+				type: "group",
+				heading: t.groups.reading,
+				items: [
+					{
+						name: t.reading.codePretty.name,
+						desc: t.reading.codePretty.desc,
+						control: { type: "toggle", key: "codePretty" },
+					},
+					{
+						name: t.reading.tablePretty.name,
+						desc: t.reading.tablePretty.desc,
+						control: { type: "toggle", key: "tablePretty" },
+					},
+					{
+						name: t.reading.toc.name,
+						desc: t.reading.toc.desc,
+						control: { type: "toggle", key: "tocVisible" },
+					},
+					{
+						name: t.reading.rememberScroll.name,
+						desc: t.reading.rememberScroll.desc,
+						control: { type: "toggle", key: "rememberScroll" },
+					},
+					{
+						name: t.reading.cjk.name,
+						desc: t.reading.cjk.desc,
+						control: { type: "toggle", key: "cjkPaste" },
+					},
+				],
+			},
+			{
+				type: "group",
+				heading: t.groups.maintenance,
+				items: [
+					{
+						name: t.maintenance.reset.name,
+						desc: t.maintenance.reset.desc,
+						action: () => {
+							void this.resetToDefaults();
+						},
+					},
+				],
+			},
+		];
 	}
 }

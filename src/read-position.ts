@@ -1,4 +1,4 @@
-import { MarkdownView } from "obsidian";
+import { MarkdownView, Platform } from "obsidian";
 import type { TFile } from "obsidian";
 import type FeishuLitePlugin from "./main";
 
@@ -8,6 +8,8 @@ import type FeishuLitePlugin from "./main";
  *   不受阅读视图懒渲染影响（与浮动目录同一套机制）
  * - 只在阅读视图恢复：编辑视图的光标位置由 Obsidian 原生恢复，不抢
  * - 记录：滚动时实时进内存，1.2s 防抖落盘（只写盘，不触发重渲染）；切文件 / 退出 / 重命名 / 删除时立即落盘
+ * - 仅桌面端：移动端在 initReadPosition 直接返回（不记录、不恢复、不写盘）——
+ *   移动端与桌面写同一份 data.json，经 git 同步会反复产生合并冲突
  */
 
 const MAX_ENTRIES = 400;
@@ -19,6 +21,8 @@ let onScroll: (() => void) | null = null;
 let flushTimer: number | null = null;
 
 export function initReadPosition(plugin: FeishuLitePlugin): void {
+	// 移动端：阅读位置为桌面专属功能——不记录、不恢复，也不向 data.json 写入（见文件头注释）
+	if (Platform.isMobile) return;
 	pluginRef = plugin;
 	// 与设置共享同一引用（落盘即 saveData；注意防止引用到 DEFAULT_SETTINGS 的共享对象）
 	map = { ...(plugin.settings.readPositions ?? {}) };

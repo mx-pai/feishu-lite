@@ -627,7 +627,7 @@ export class FlSettingTab extends PluginSettingTab {
 
 		new Setting(el)
 			.setName("记住阅读位置")
-			.setDesc("按笔记记住上次读到的位置，重开自动回到原位（只在阅读视图恢复；编辑视图的光标位置由 Obsidian 原生恢复）")
+			.setDesc("按笔记记住上次读到的位置，重开自动回到原位（只在阅读视图恢复；编辑视图的光标位置由 Obsidian 原生恢复）。仅桌面端生效：移动端不记录、不恢复")
 			.addToggle((t) =>
 				t.setValue(this.plugin.settings.rememberScroll).onChange(async (v) => {
 					this.plugin.settings.rememberScroll = v;

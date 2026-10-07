@@ -34,6 +34,8 @@ import { CommentsController } from "./comments";
 import { ImageToolsController } from "./image-tools";
 import { adaptFlSlashItem, validateFlSlashItem } from "./slash-ext";
 import type { FlSlashItem } from "./slash-ext";
+import { adaptFlSelectionAction, validateFlSelectionAction } from "./selection-ext";
+import type { FlSelectionAction, SelectionAction } from "./selection-ext";
 import type { SlashItem } from "./slash-items";
 
 /** 二选一确认弹窗（不可撤销操作二次确认用，如「永久删除」模式下的附件清理） */
@@ -84,6 +86,28 @@ export default class FeishuLitePlugin extends Plugin {
 		return () => {
 			const i = this.externalSlashItems.indexOf(adapted);
 			if (i >= 0) this.externalSlashItems.splice(i, 1);
+		};
+	}
+
+	/** 第三方插件注册的划词动作（公开扩展点：`selectionActions.register`；编辑器划词工具条 + 阅读批注条共用） */
+	readonly externalSelectionActions: SelectionAction[] = [];
+
+	/** 划词动作扩展 API（外部插件：`app.plugins.plugins["feishu-lite"].selectionActions.register(item)`，返回注销函数） */
+	readonly selectionActions = {
+		register: (item: FlSelectionAction): (() => void) => this.registerSelectionAction(item),
+	};
+
+	/** 注册外部划词动作：校验不过抛错；同 id 重复注册 = 覆盖；返回注销函数 */
+	registerSelectionAction(item: FlSelectionAction): () => void {
+		const err = validateFlSelectionAction(item);
+		if (err) throw new Error(`[feishu-lite] 划词动作注册失败：${err}`);
+		const adapted = adaptFlSelectionAction(item);
+		const prev = this.externalSelectionActions.findIndex((it) => it.id === adapted.id);
+		if (prev >= 0) this.externalSelectionActions.splice(prev, 1, adapted);
+		else this.externalSelectionActions.push(adapted);
+		return () => {
+			const i = this.externalSelectionActions.indexOf(adapted);
+			if (i >= 0) this.externalSelectionActions.splice(i, 1);
 		};
 	}
 

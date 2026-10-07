@@ -198,7 +198,8 @@ export class CommentsController {
   let bar: HTMLElement | null = null, timer:number|null=null;
   const clear = () => { bar?.remove(); bar = null; };
   const update = (doc: Document) => {
-   if (!this.plugin.settings.commentsEnabled) return;
+   const ext = this.plugin.externalSelectionActions;
+   if (!this.plugin.settings.commentsEnabled && !ext.length) return;
    const selection = doc.getSelection(); if (!selection || selection.isCollapsed) { clear(); return; }
    const parent = selection.anchorNode?.parentElement, root = parent?.closest<HTMLElement>('[data-fl-comments-source]');
    if (!root || !root.closest('.markdown-reading-view,.markdown-preview-view,.cm-embed-block')) { clear(); return; }
@@ -206,14 +207,21 @@ export class CommentsController {
    const path = root.dataset.flCommentsSource!, file = this.plugin.app.vault.getAbstractFileByPath(path); if (!(file instanceof TFile)) return;
    const win = doc.defaultView ?? window;
    clear(); bar = doc.body.createDiv({cls:'fl-reading-comment-bar'});
+   // 公开协调标记：其他划词浮层以此判断「点在 feishu-lite 划词条上」并避让
+   bar.setAttribute('data-fl-ui','selbar');
    const range = selection.getRangeAt(0).getBoundingClientRect(); bar.style.left = `${Math.max(8,Math.min(range.left,win.innerWidth-120))}px`; bar.style.top = `${Math.max(8,range.top-44)}px`;
    const sourceFrom = Number(root.dataset.flSourceFrom), sourceTo = Number(root.dataset.flSourceTo);
-   action(bar,this.pending?.path === path ? '关联批注' : '添加批注',async () => {
+   if (this.plugin.settings.commentsEnabled) action(bar,this.pending?.path === path ? '关联批注' : '添加批注',async () => {
     const text = await readNote(this.plugin.app,file), body = parseComments(text).body, hits: number[] = [];
     for (let p = body.indexOf(quote,sourceFrom); p >= 0 && p+quote.length <= sourceTo; p = body.indexOf(quote,p+1)) hits.push(p);
     if (hits.length !== 1) throw new Error('所选文字在源码中无法唯一定位，请切换编辑视图选择');
     this.createSelection(file,text,hits[0],hits[0]+quote.length,quote); clear();
    });
+   // 外部划词动作（公开扩展点）：阅读态无编辑器，给 null；动作自行从 DOM 读选区
+   for (const a of ext) {
+    const btn = action(bar,a.label,() => a.run(null));
+    if (a.title) btn.title = a.title;
+   }
    bar.addEventListener('mousedown',e => e.preventDefault());
    bar.addEventListener('pointerdown',e => e.preventDefault());
   };

@@ -28,6 +28,11 @@ interface MeasureReq<T> {
 	write?: (measure: T, view: EditorView) => void;
 }
 
+/** 跨行选区是否显示工具条：批注在 → 可（批注本就为跨行设计）；外部划词动作里有 multiLine → 可 */
+function multiLineOk(plugin: FeishuLitePlugin): boolean {
+	return plugin.settings.commentsEnabled || plugin.externalSelectionActions.some((a) => a.multiLine);
+}
+
 /** 应用或取消包裹：选区已包着同一标记 → 剥壳（再次点击 = 取消）；否则包裹 / 换色 / 互转 */
 function toggleWrap(view: EditorView, open: string, close: string): void {
 	const selection = view.state.selection.main;
@@ -53,6 +58,9 @@ export function selectToolbarExtension(plugin: FeishuLitePlugin) {
 			private measureReq: MeasureReq<{ a: BarRect; b: BarRect } | null>;
 			/** 工具条按钮：开标记 ↔ 元素，用于同步「当前已生效样式」的点亮态 */
 			private buttons: { open: string; el: HTMLElement }[] = [];
+			/** 外部划词动作按钮（含分隔线）；按 id 签名重建，不参与 is-active 同步 */
+			private extEls: HTMLElement[] = [];
+			private extSig = "";
 
 			constructor(view: EditorView) {
 				this.view = view;
@@ -83,6 +91,8 @@ export function selectToolbarExtension(plugin: FeishuLitePlugin) {
 				this.dom?.remove();
 				this.dom = null;
 				this.buttons = [];
+				this.extEls = [];
+				this.extSig = "";
 			}
 
 			private sync(): void {
@@ -94,7 +104,7 @@ export function selectToolbarExtension(plugin: FeishuLitePlugin) {
 				}
 				const fromLine = view.state.doc.lineAt(sel.from);
 				const toLine = view.state.doc.lineAt(sel.to);
-				if ((fromLine.number !== toLine.number && !plugin.settings.commentsEnabled) || lineInFence(view.state, fromLine.number)) {
+				if ((fromLine.number !== toLine.number && !multiLineOk(plugin)) || lineInFence(view.state, fromLine.number)) {
 					if (this.shown) this.hide();
 					return;
 				}
@@ -112,7 +122,7 @@ export function selectToolbarExtension(plugin: FeishuLitePlugin) {
 				if (sel.empty || this.dismissed || !plugin.settings.selectToolbar || !view.hasFocus) return null;
 				const fromLine = view.state.doc.lineAt(sel.from);
 				const toLine = view.state.doc.lineAt(sel.to);
-				if ((fromLine.number !== toLine.number && !plugin.settings.commentsEnabled) || lineInFence(view.state, fromLine.number)) return null;
+				if ((fromLine.number !== toLine.number && !multiLineOk(plugin)) || lineInFence(view.state, fromLine.number)) return null;
 				const a = view.coordsAtPos(sel.from);
 				const b = view.coordsAtPos(sel.to);
 				return a && b ? { a, b } : null;
@@ -130,6 +140,7 @@ export function selectToolbarExtension(plugin: FeishuLitePlugin) {
 
 			private show(a: BarRect, b: BarRect): void {
 				const dom = this.ensureDom();
+				this.syncExternal(dom);
 				dom.classList.add("is-on");
 				this.syncActive();
 				const w = dom.offsetWidth;
@@ -149,6 +160,30 @@ export function selectToolbarExtension(plugin: FeishuLitePlugin) {
 				this.shown = false;
 			}
 
+			/** 外部划词动作按钮：按 id 签名重建（注册表变化时才动 DOM；按钮不参与 is-active 同步） */
+			private syncExternal(dom: HTMLElement): void {
+				const items = plugin.externalSelectionActions;
+				const sig = items.map((a) => a.id).join(",");
+				if (sig === this.extSig) return;
+				this.extSig = sig;
+				for (const el of this.extEls) el.remove();
+				this.extEls = [];
+				if (!items.length) return;
+				const sep = dom.createSpan({ cls: "fl-selbar-sep" });
+				this.extEls.push(sep);
+				for (const a of items) {
+					const btn = dom.createSpan({ cls: "fl-selbar-ext", text: a.label });
+					if (a.title) btn.title = a.title;
+					btn.addEventListener("click", () => {
+						const info = this.view.state.field(editorInfoField, false);
+						void Promise.resolve()
+							.then(() => a.run(info?.editor ?? null))
+							.catch((err) => console.error("[feishu-lite] 划词动作执行失败", err));
+					});
+					this.extEls.push(btn);
+				}
+			}
+
 			/** 同步「当前选区已生效样式」到按钮点亮态（Feishu 式：点亮的按钮再点一次 = 取消） */
 			private syncActive(): void {
 				const selection = this.view.state.selection.main;
@@ -165,6 +200,8 @@ export function selectToolbarExtension(plugin: FeishuLitePlugin) {
 				// Obsidian createDiv/createSpan 会自动挂到调用者上。
 				// Document 已有 html 根节点，必须在 body / 工具条内创建。
 				const dom = doc.body.createDiv({ cls: "fl-selbar" });
+				// 公开协调标记：其他划词浮层（如翻译）以此判断「点在 feishu-lite 划词条上」并避让
+				dom.setAttribute("data-fl-ui", "selbar");
 				// 保住编辑器焦点与选区：按在工具条上不触发编辑器失焦
 				dom.addEventListener("mousedown", (e) => e.preventDefault());
 				dom.addEventListener("pointerdown", (e) => e.preventDefault());

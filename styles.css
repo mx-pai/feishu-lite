@@ -911,6 +911,20 @@ body.is-mobile .fl-toc-hide {
 	background: var(--background-modifier-hover);
 	color: var(--text-normal);
 }
+/* 外部插件注册的划词动作按钮（selectionActions.register；编辑器工具条 + 阅读批注条共用） */
+.fl-selbar-ext {
+	font-size: 11px;
+	line-height: 1.5;
+	padding: 1px 7px;
+	border-radius: 5px;
+	cursor: pointer;
+	color: var(--text-muted);
+	border: 1px solid transparent;
+}
+.fl-selbar-ext:hover {
+	background: var(--background-modifier-hover);
+	color: var(--text-normal);
+}
 .fl-selbar-dot.is-active {
 	outline: 1.5px solid var(--text-normal);
 	outline-offset: 1.5px;

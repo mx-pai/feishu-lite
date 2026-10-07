@@ -911,12 +911,22 @@ body.is-mobile .fl-toc-hide {
 	background: var(--background-modifier-hover);
 	color: var(--text-normal);
 }
-/* 外部插件注册的划词动作按钮（selectionActions.register）：与内置「批注」同款按钮观感（编辑器工具条 / 阅读批注条形态一致） */
+/* 文字动作（批注 / 外部插件注册动作）：与 </> S 同款纯文字观感，不做按钮底（hover 才浮出背景） */
+.fl-selbar-comment,
 .fl-selbar-ext {
-	padding: 0 8px;
-	height: 28px;
 	font-size: 12px;
-	margin-left: 4px;
+	line-height: 1.5;
+	padding: 1px 7px;
+	border-radius: 5px;
+	cursor: pointer;
+	color: var(--text-muted);
+	border: 1px solid transparent;
+	white-space: nowrap;
+}
+.fl-selbar-comment:hover,
+.fl-selbar-ext:hover {
+	background: var(--background-modifier-hover);
+	color: var(--text-normal);
 }
 .fl-selbar-dot.is-active {
 	outline: 1.5px solid var(--text-normal);
@@ -996,7 +1006,6 @@ body.is-mobile .fl-toc-hide {
 textarea.fl-dialog-input { min-height: 160px; resize: vertical; }
 .fl-dialog-actions, .fl-comment-actions, .fl-comment-controls { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
 .fl-dialog-actions { justify-content: flex-end; margin-top: 16px; }
-.fl-selbar-comment { padding: 0 8px; height: 28px; font-size: 12px; margin-left: 4px; }
 .fl-selbar .is-disabled { opacity: .3; pointer-events: none; }
 .fl-selbar { max-width: calc(100vw - 16px); flex-wrap: wrap; }
 .fl-comment-panel { padding: 12px; overflow: auto; height: 100%; }
@@ -1016,6 +1025,9 @@ textarea.fl-dialog-input { min-height: 160px; resize: vertical; }
 .fl-comment-text.is-resolved, mark.fl-comment-read.is-resolved { background: transparent; border-bottom-color: var(--text-muted); }
 .fl-reading-comment-bar, .fl-image-toolbar { position: fixed; z-index: 1000; padding: 7px; background: var(--background-primary); border: 1px solid var(--background-modifier-border); border-radius: 10px; box-shadow: var(--shadow-s); display: flex; flex-wrap: wrap; gap: 5px; }
 .fl-image-toolbar { max-width: min(800px, calc(100vw - 16px)); }
+/* 阅读批注条内的动作（批注 / 外部动作）：与编辑器划词条同款纯文字观感，不做按钮底 */
+.fl-reading-comment-bar .fl-rbar-act { background: none; border: none; box-shadow: none; height: auto; padding: 1px 7px; border-radius: 5px; color: var(--text-muted); font-size: 12px; line-height: 1.5; }
+.fl-reading-comment-bar .fl-rbar-act:hover { background: var(--background-modifier-hover); color: var(--text-normal); }
 .fl-image-toolbar button { min-height: 32px; padding: 0 9px; }
 .fl-image-selected { outline: 2px solid var(--interactive-accent); outline-offset: 3px; }
 .fl-image-figure { display: inline-flex; flex-direction: column; align-items: center; min-width: 0; max-width: 100%; vertical-align: top; }
@@ -1041,7 +1053,7 @@ textarea.fl-dialog-input { min-height: 160px; resize: vertical; }
  .fl-image-toolbar { max-height: 35dvh; overflow: auto; }
  .fl-image-editor.modal { width: 100vw; max-width: 100vw; padding: 14px; }
  .fl-image-editor-tools, .fl-image-editor-footer { gap: 4px; }
- .fl-selbar-comment { min-height: 36px; }
+ .fl-selbar-comment, .fl-selbar-ext { padding: 8px 10px; }
 }
 
 /* Per-occurrence alignment, aspect-ratio resize handles, and native image/text callouts. */

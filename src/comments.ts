@@ -216,10 +216,11 @@ export class CommentsController {
     for (let p = body.indexOf(quote,sourceFrom); p >= 0 && p+quote.length <= sourceTo; p = body.indexOf(quote,p+1)) hits.push(p);
     if (hits.length !== 1) throw new Error('所选文字在源码中无法唯一定位，请切换编辑视图选择');
     this.createSelection(file,text,hits[0],hits[0]+quote.length,quote); clear();
-   });
+   },'fl-rbar-act');
    // 外部划词动作（公开扩展点）：阅读态无编辑器，给 null；动作自行从 DOM 读选区
+   // fl-rbar-act：与编辑器划词条同款纯文字观感（不做按钮底，见 styles.css）
    for (const a of ext) {
-    const btn = action(bar,a.label,() => a.run(null));
+    const btn = action(bar,a.label,() => a.run(null),'fl-rbar-act');
     if (a.title) btn.title = a.title;
    }
    bar.addEventListener('mousedown',e => e.preventDefault());

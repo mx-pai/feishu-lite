@@ -58,7 +58,7 @@ export function selectToolbarExtension(plugin: FeishuLitePlugin) {
 			private measureReq: MeasureReq<{ a: BarRect; b: BarRect } | null>;
 			/** 工具条按钮：开标记 ↔ 元素，用于同步「当前已生效样式」的点亮态 */
 			private buttons: { open: string; el: HTMLElement }[] = [];
-			/** 外部划词动作按钮（含分隔线）；按 id 签名重建，不参与 is-active 同步 */
+			/** 外部划词动作（含分隔线）；按 id 签名重建，不参与 is-active 同步 */
 			private extEls: HTMLElement[] = [];
 			private extSig = "";
 
@@ -172,8 +172,8 @@ export function selectToolbarExtension(plugin: FeishuLitePlugin) {
 				const sep = dom.createSpan({ cls: "fl-selbar-sep" });
 				this.extEls.push(sep);
 				for (const a of items) {
-					// 与内置「批注」同款按钮观感（span 式纯文字会与阅读条里的按钮形态不一致）
-					const btn = dom.createEl("button", { cls: "fl-selbar-ext", text: a.label });
+					// 文字动作：与 </>、S 同款纯文字观感（统一条内风格，不做按钮底、hover 才浮出背景）
+					const btn = dom.createSpan({ cls: "fl-selbar-ext", text: a.label });
 					if (a.title) btn.title = a.title;
 					btn.addEventListener("click", () => {
 						const info = this.view.state.field(editorInfoField, false);
@@ -230,7 +230,7 @@ export function selectToolbarExtension(plugin: FeishuLitePlugin) {
 					toggleWrap(this.view, "~~", "~~");
 				});
 				this.buttons.push({ open: "~~", el: strike });
-				const comment = dom.createEl("button", { cls: "fl-selbar-comment", text: "批注", attr: { "aria-label": "为选中文字添加批注" } });
+				const comment = dom.createSpan({ cls: "fl-selbar-comment", text: "批注", attr: { "aria-label": "为选中文字添加批注" } });
 				comment.addEventListener("click", () => {
 					const info = this.view.state.field(editorInfoField, false);
 					if (info?.file && info.editor) { plugin.comments.createFromEditor(info.editor, info.file); this.dismissed = true; this.hide(); }

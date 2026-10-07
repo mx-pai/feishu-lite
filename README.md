@@ -99,13 +99,13 @@ this.register(() => off?.());      // 卸载时注销（register 返回注销函
 
 ### 第三方划词动作扩展 / Third-party selection actions
 
-其他插件可以把动作注册进本插件的两条划词浮条——编辑器划词工具条 + 阅读视图批注条（批注功能关闭时批注按钮隐藏，第三方动作不受影响）：
+其他插件可以把动作注册进本插件的两条划词浮条——编辑器划词工具条 + 阅读视图批注条（批注功能关闭时批注入口隐藏，第三方动作不受影响）：
 
 ```ts
 const fl = (this.app as any).plugins.plugins["feishu-lite"];
 const off = fl?.selectionActions?.register({
   id: "your-plugin:translate",   // 唯一标识（建议带插件前缀）；同 id 重复注册即覆盖
-  label: "译",                    // 按钮文字（工具栏空间有限，建议 1~2 字）
+  label: "译",                    // 动作文字（工具栏空间有限，建议 1~2 字）
   title: "翻译选中内容",           // 可选：悬停提示
   multiLine: true,               // 可选：跨行选区也显示（默认 false，与内置格式工具一致）
   run: (editor) => { /* 编辑器工具条给 Editor，阅读批注条给 null（自行从 DOM 读选区） */ },

@@ -1,6 +1,7 @@
 import { Editor, EditorPosition, EditorSuggest, EditorSuggestContext, EditorSuggestTriggerInfo, Notice, TFile } from "obsidian";
 import type FeishuLitePlugin from "./main";
 import { SLASH_ITEMS, SlashItem } from "./slash-items";
+import { resolveHint } from "./slash-ext";
 import { openSlashCascade } from "./cascade";
 
 /**
@@ -60,10 +61,12 @@ export class SlashSuggest extends EditorSuggest<SlashItem> {
 
 	getSuggestions(context: EditorSuggestContext): SlashItem[] {
 		const q = context.query.trim().toLowerCase();
+		// 内置项 + 第三方插件注册项（plugin.externalSlashItems）一起参与匹配
+		const all = [...SLASH_ITEMS, ...this.plugin.externalSlashItems];
 		// 刚敲 `/` 时只列主项，次级项（选类型/指定栏数等）输入关键词才出现
 		const items = !q
-			? SLASH_ITEMS.filter((it) => !it.secondary)
-			: SLASH_ITEMS.filter(
+			? all.filter((it) => !it.secondary)
+			: all.filter(
 					(it) =>
 						it.keys.some((k) => k.toLowerCase().startsWith(q)) ||
 						it.keys.some((k) => k.toLowerCase().includes(q))
@@ -75,7 +78,7 @@ export class SlashSuggest extends EditorSuggest<SlashItem> {
 	renderSuggestion(item: SlashItem, el: HTMLElement): void {
 		el.addClass("fl-slash-item");
 		el.createDiv({ cls: "fl-slash-name", text: item.name });
-		el.createDiv({ cls: "fl-slash-hint", text: item.hint });
+		el.createDiv({ cls: "fl-slash-hint", text: resolveHint(item) });
 	}
 
 	selectSuggestion(item: SlashItem): void {

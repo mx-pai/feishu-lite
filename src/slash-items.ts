@@ -20,7 +20,8 @@ export interface SlashParamSpec {
 export interface SlashItem {
 	id: string;
 	name: string;
-	hint: string;
+	/** 说明行（菜单右侧灰色小字）；可传函数、每次渲染时求值（第三方扩展项用得上） */
+	hint: string | (() => string);
 	/** 匹配键：英文 / 拼音全称 / 拼音缩写 / 中文，任一前缀或包含即命中 */
 	keys: string[];
 	/** 次级项：刚输入 `/` 时默认不出现在列表里，输入关键词才命中（如"高亮块·选类型"） */

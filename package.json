@@ -7,7 +7,7 @@
 	"scripts": {
 		"dev": "node esbuild.config.mjs",
 		"build": "tsc -noEmit -skipLibCheck && node esbuild.config.mjs production",
-		"test": "node --test tests/core.test.mjs tests/safety.test.mjs"
+		"test": "node --test tests/core.test.mjs tests/safety.test.mjs tests/slash-ext.test.mjs"
 	},
 	"devDependencies": {
 		"@codemirror/state": "^6.5.0",

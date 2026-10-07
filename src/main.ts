@@ -32,6 +32,9 @@ import {
 import { closeTablePicker, openTablePicker } from "./table-picker";
 import { CommentsController } from "./comments";
 import { ImageToolsController } from "./image-tools";
+import { adaptFlSlashItem, validateFlSlashItem } from "./slash-ext";
+import type { FlSlashItem } from "./slash-ext";
+import type { SlashItem } from "./slash-items";
 
 /** 二选一确认弹窗（不可撤销操作二次确认用，如「永久删除」模式下的附件清理） */
 class ConfirmActionModal extends Modal {
@@ -61,6 +64,28 @@ export default class FeishuLitePlugin extends Plugin {
 	settings!: FlSettings;
 	comments!: CommentsController;
 	imageTools!: ImageToolsController;
+
+	/** 第三方插件注册的斜杠菜单项（公开扩展点：`slashMenu.register`；与内置项一起参与 `/` 匹配） */
+	readonly externalSlashItems: SlashItem[] = [];
+
+	/** 斜杠菜单扩展 API（外部插件：`app.plugins.plugins["feishu-lite"].slashMenu.register(item)`，返回注销函数） */
+	readonly slashMenu = {
+		register: (item: FlSlashItem): (() => void) => this.registerSlashItem(item),
+	};
+
+	/** 注册外部斜杠项：校验不过抛错；同 id 重复注册 = 覆盖；返回注销函数 */
+	registerSlashItem(item: FlSlashItem): () => void {
+		const err = validateFlSlashItem(item);
+		if (err) throw new Error(`[feishu-lite] 斜杠项注册失败：${err}`);
+		const adapted = adaptFlSlashItem(item);
+		const prev = this.externalSlashItems.findIndex((it) => it.id === adapted.id);
+		if (prev >= 0) this.externalSlashItems.splice(prev, 1, adapted);
+		else this.externalSlashItems.push(adapted);
+		return () => {
+			const i = this.externalSlashItems.indexOf(adapted);
+			if (i >= 0) this.externalSlashItems.splice(i, 1);
+		};
+	}
 
 	async onload(): Promise<void> {
 		await this.loadSettings();

@@ -2,6 +2,7 @@ import type { Editor, TFile } from "obsidian";
 import type FeishuLitePlugin from "./main";
 import type { ListOption } from "./util";
 import type { SlashItem } from "./slash-items";
+import { resolveHint } from "./slash-ext";
 
 /**
  * 级联选项菜单（飞书式）：
@@ -220,7 +221,7 @@ export function openSlashCascade(
 		buildRow(
 			leftList,
 			it.name,
-			it.hint,
+			resolveHint(it),
 			() => {
 				if (focus === "left" && !guardMouse()) setLeft(i);
 			},

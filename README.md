@@ -77,3 +77,22 @@ npm install
 npm test        # 纯逻辑 + 并发/恢复与附件安全测试
 npm run build   # 类型检查 + esbuild 生产构建 → main.js
 ```
+
+### 第三方斜杠菜单扩展 / Third-party slash items
+
+其他插件可以把自己的入口注册进斜杠菜单（与内置项同规则匹配；本插件未启用时该 API 不存在，注册前请自行判空）：
+
+```ts
+const fl = (this.app as any).plugins.plugins["feishu-lite"];
+const off = fl?.slashMenu?.register({
+  id: "your-plugin:action",        // 唯一标识（建议带插件前缀）；同 id 重复注册即覆盖
+  name: "菜单显示名",
+  keys: ["dongzuo", "dz", "动作"],  // 匹配键：英文 / 拼音 / 中文，任一前缀或包含即命中
+  hint: () => "说明行（可传函数，每次渲染时求值）", // 可选
+  secondary: false,                // 可选：true = 输入关键词才出现
+  run: (editor, file) => { /* /query 已被吃掉，光标处可直接插入 */ },
+});
+this.register(() => off?.());      // 卸载时注销（register 返回注销函数）
+```
+
+`register` 校验不通过抛 `Error`。Other plugins can register entries into the slash menu via `plugin.slashMenu.register(item)` — required: `id` / `name` / `keys` / `run(editor, file)`; optional: `hint` (string or function), `secondary`. Validation errors throw; the returned function unregisters.

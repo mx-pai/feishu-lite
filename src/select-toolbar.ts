@@ -172,7 +172,8 @@ export function selectToolbarExtension(plugin: FeishuLitePlugin) {
 				const sep = dom.createSpan({ cls: "fl-selbar-sep" });
 				this.extEls.push(sep);
 				for (const a of items) {
-					const btn = dom.createSpan({ cls: "fl-selbar-ext", text: a.label });
+					// 与内置「批注」同款按钮观感（span 式纯文字会与阅读条里的按钮形态不一致）
+					const btn = dom.createEl("button", { cls: "fl-selbar-ext", text: a.label });
 					if (a.title) btn.title = a.title;
 					btn.addEventListener("click", () => {
 						const info = this.view.state.field(editorInfoField, false);

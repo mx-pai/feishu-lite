@@ -13,6 +13,7 @@ export const en = {
 		comments: "Editor · comments",
 		highlight: "Editor · highlight",
 		reading: "Reading · polish & navigation",
+		linkCard: "Reading · link cards",
 		maintenance: "Maintenance",
 	},
 	hero: {
@@ -192,6 +193,16 @@ export const en = {
 		cjk: {
 			name: "Auto-space mixed scripts",
 			desc: "Add a space between mixed scripts when pasting. Skipped inside code, links, and math.",
+		},
+	},
+	linkCard: {
+		enabled: {
+			name: "Link cards",
+			desc: "Render > [!link-card] as Feishu / Telegram-style link cards. Network is used only when you insert or refresh; reading stays offline.",
+		},
+		localize: {
+			name: "Download card images on insert",
+			desc: "Save the card image into your attachments so cards work offline; off keeps the remote image URL.",
 		},
 	},
 	maintenance: {

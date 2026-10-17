@@ -177,7 +177,7 @@ function switchedAway(start: TFile | null, editor: Editor): boolean {
  * 保存附件：模板不含 {i}（或多批同时粘贴）时 getAvailablePathForAttachment 可能给出同一个路径，
  * createBinary 会直接抛错、整批中断并留下孤儿附件。撞名就重新取一次可用路径，有限次重试（E2）。
  */
-async function createAttachment(app: App, name: string, sourcePath: string, buf: ArrayBuffer): Promise<TFile> {
+export async function createAttachment(app: App, name: string, sourcePath: string, buf: ArrayBuffer): Promise<TFile> {
 	let path = await app.fileManager.getAvailablePathForAttachment(name, sourcePath);
 	for (let attempt = 0; ; attempt++) {
 		try {

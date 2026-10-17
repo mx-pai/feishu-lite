@@ -531,6 +531,146 @@ body.fl-hide-empty-hint .fl-col-empty {
 	margin: 12px 0;
 }
 
+/* ================= 链接卡片（> [!link-card]） ================= */
+
+/* 阅读视图：透明化 callout 外壳，内部换成自绘卡片；编辑视图不动（保持源码可改） */
+.markdown-rendered .callout[data-callout="link-card"] {
+	background: transparent;
+	border: none;
+	box-shadow: none;
+	padding: 0;
+	margin: 10px 0;
+}
+.markdown-rendered .callout[data-callout="link-card"] .callout-title {
+	display: none;
+}
+.markdown-rendered .callout[data-callout="link-card"] .callout-content {
+	padding: 0;
+	background: transparent;
+	border: none;
+}
+
+/* 卡片主体：整卡可点（<a> 承载跳转，内层用 div 防嵌套链接） */
+.fl-linkcard-hit {
+	display: flex;
+	gap: 12px;
+	padding: 12px;
+	border: 1px solid var(--background-modifier-border);
+	border-radius: var(--radius-m, 8px);
+	background: var(--background-secondary);
+	text-decoration: none;
+	color: inherit;
+	transition: background-color 120ms ease, border-color 120ms ease;
+}
+.fl-linkcard-hit:hover {
+	background: var(--background-secondary-alt, var(--background-secondary));
+	border-color: var(--background-modifier-border-hover, var(--background-modifier-border));
+}
+/* 外链角标（主题给 a.external-link 的尾部图标）在整卡上不要 */
+a.fl-linkcard-hit.external-link {
+	background-image: none;
+	padding-right: 12px;
+}
+
+.fl-linkcard-main {
+	flex: 1 1 auto;
+	min-width: 0;
+	display: flex;
+	flex-direction: column;
+	justify-content: center;
+	gap: 4px;
+}
+.fl-linkcard-title {
+	font-weight: 600;
+	font-size: var(--font-ui-small, 14px);
+	line-height: 1.35;
+	color: var(--text-normal);
+	display: -webkit-box;
+	-webkit-box-orient: vertical;
+	-webkit-line-clamp: 2;
+	overflow: hidden;
+}
+.fl-linkcard-desc {
+	font-size: var(--font-smaller, 12px);
+	line-height: 1.45;
+	color: var(--text-muted);
+	display: -webkit-box;
+	-webkit-box-orient: vertical;
+	-webkit-line-clamp: 2;
+	overflow: hidden;
+}
+.fl-linkcard-foot {
+	display: flex;
+	align-items: center;
+	gap: 6px;
+	margin-top: 2px;
+	min-width: 0;
+}
+.fl-linkcard-favicon {
+	width: 14px;
+	height: 14px;
+	border-radius: 3px;
+	flex: none;
+	object-fit: contain;
+}
+.fl-linkcard-glyph {
+	width: 14px;
+	height: 14px;
+	flex: none;
+	border-radius: 3px;
+	background: var(--background-modifier-hover);
+	color: var(--text-muted);
+	font-size: 9px;
+	line-height: 14px;
+	text-align: center;
+	font-weight: 700;
+	text-transform: uppercase;
+}
+.fl-linkcard-site {
+	font-size: var(--font-smaller, 12px);
+	color: var(--text-faint);
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+/* 版式：compact = 右侧方缩略图 */
+.fl-linkcard[data-layout="compact"] .fl-linkcard-thumb {
+	flex: none;
+	width: 64px;
+	height: 64px;
+	border-radius: 6px;
+	overflow: hidden;
+}
+.fl-linkcard[data-layout="compact"] .fl-linkcard-thumb img {
+	width: 100%;
+	height: 100%;
+	object-fit: cover;
+	display: block;
+}
+
+/* 版式：large = 顶部 1.91:1 大图 + 下方文字 */
+.fl-linkcard[data-layout="large"] .fl-linkcard-hit {
+	flex-direction: column;
+	gap: 0;
+	padding: 0;
+	overflow: hidden;
+}
+.fl-linkcard[data-layout="large"] .fl-linkcard-cover {
+	width: 100%;
+	aspect-ratio: 1.91 / 1;
+	background: var(--background-modifier-hover);
+}
+.fl-linkcard[data-layout="large"] .fl-linkcard-cover img {
+	width: 100%;
+	height: 100%;
+	object-fit: cover;
+	display: block;
+}
+.fl-linkcard[data-layout="large"] .fl-linkcard-main {
+	padding: 10px 12px 12px;
+}
+
 /* ================= 阅读视图：代码块美化（徽标 / 复制 / 行号） ================= */
 
 .fl-code-wrap {

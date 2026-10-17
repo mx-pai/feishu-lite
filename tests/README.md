@@ -5,7 +5,7 @@
 ## 1. 单测（不需要 Obsidian）
 
 ```bash
-npm test        # node --test tests/core.test.mjs tests/safety.test.mjs
+npm test        # 全部单测（core / safety / link-card / 斜杠与划词扩展契约）
 ```
 
 纯函数校验：批注解析（`comment-core`）、图片解析 / 箭头几何（`image-core`）与安全边界（`safety.test.mjs`）。
@@ -27,6 +27,7 @@ node tests/run-runtime.mjs toolbar   # 图片工具条（含几何居中检查�
 node tests/run-runtime.mjs native    # 原生渲染器：点击选中 / resize 手柄 / 工具条保持
 node tests/run-runtime.mjs arrow     # 图片编辑器：箭头绘制、撤销、PNG 导出
 node tests/run-runtime.mjs comment   # 批注渲染：阅读视图 mark + Live Preview 行内标记
+node tests/run-runtime.mjs linkcard  # 链接卡片渲染：三种版式 / 字段读取 / 无 url 降级
 ```
 
 也支持内联代码片段（需自带 `return` 才有输出）：`node tests/run-runtime.mjs 'return 1+1'`。

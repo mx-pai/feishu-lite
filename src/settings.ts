@@ -46,6 +46,10 @@ export interface FlSettings {
 	rememberScroll: boolean;
 	/** 粘贴时自动美化中英混排（中文与英文/数字间补空格；命令「格式：中英混排美化」可手动执行） */
 	cjkPaste: boolean;
+	/** 链接卡片：把 > [!link-card] 渲染成卡片（插入 / 刷新时抓取网页元数据；渲染不联网） */
+	linkCard: boolean;
+	/** 链接卡片：插入时把网页配图下载到附件目录（关闭则直接引用远程图片地址） */
+	linkCardLocalizeImage: boolean;
 	/** 设置页分区折叠状态（分区 id → 是否收起；缺省展开；仅设置界面状态，不影响功能） */
 	settingsCollapsed: Record<string, boolean>;
 	/** 阅读位置表：vault 路径 -> 视口顶部行号（由 read-position 模块自动维护，勿手改） */
@@ -94,6 +98,8 @@ export const DEFAULT_SETTINGS: FlSettings = {
 	tocVisible: false,
 	rememberScroll: true,
 	cjkPaste: false,
+	linkCard: true,
+	linkCardLocalizeImage: true,
 	settingsCollapsed: {},
 	readPositions: {},
 	customHighlightColors: {},
@@ -200,6 +206,7 @@ const FL_SECTIONS: { id: string; icon: string }[] = [
 	{ id: "comments", icon: "message-square" },
 	{ id: "highlight", icon: "highlighter" },
 	{ id: "reading", icon: "book-open" },
+	{ id: "linkCard", icon: "link" },
 	{ id: "maintenance", icon: "rotate-ccw" },
 ];
 
@@ -778,6 +785,24 @@ export class FlSettingTab extends PluginSettingTab {
 						name: t.reading.cjk.name,
 						desc: t.reading.cjk.desc,
 						control: { type: "toggle", key: "cjkPaste" },
+					},
+				],
+			},
+			{
+				type: "group",
+				heading: t.groups.linkCard,
+				cls: this.sectionCls("linkCard"),
+				items: [
+					{
+						name: t.linkCard.enabled.name,
+						desc: t.linkCard.enabled.desc,
+						control: { type: "toggle", key: "linkCard" },
+					},
+					{
+						name: t.linkCard.localize.name,
+						desc: t.linkCard.localize.desc,
+						visible: () => this.plugin.settings.linkCard,
+						control: { type: "toggle", key: "linkCardLocalizeImage" },
 					},
 				],
 			},

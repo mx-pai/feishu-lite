@@ -9,6 +9,7 @@ import { registerImagePaste } from "./image-paste";
 import { imageGridPostProcessor, insertGridSkeleton, openImagePicker, unwrapGrid, wrapSelectionIntoGrid } from "./image-grid";
 import { highlightPostProcessor, highlightViewPlugin, pickColorAndHighlight } from "./highlight";
 import { colPostProcessor } from "./column";
+import { registerLinkCard } from "./link-card";
 import { codePrettyPostProcessor } from "./code-pretty";
 import { lightboxEditorExtension, registerLightbox } from "./lightbox";
 import { initToc, showTocPanel, toggleTocPanel } from "./toc";
@@ -146,6 +147,9 @@ export default class FeishuLitePlugin extends Plugin {
 
 		// 图片分栏：共享网格布局 + 异步嵌入的空状态同步
 		this.registerMarkdownPostProcessor(imageGridPostProcessor);
+
+		// 链接卡片（> [!link-card]）：阅读视图渲染卡片；插入 / 刷新 / 重抓命令才联网抓取
+		registerLinkCard(this);
 
 		// 表格增强：Tab/Shift+Tab/Enter 跳格 + 自动对齐（Advanced Tables 启用时自动让位）
 		this.registerEditorExtension(tableEnhanceExtension(this));

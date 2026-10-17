@@ -11,6 +11,7 @@ export const zh: Dict = {
 		comments: "编辑 · 批注",
 		highlight: "编辑 · 文本高亮",
 		reading: "阅读 · 美化与导航",
+		linkCard: "阅读 · 链接卡片",
 		maintenance: "维护",
 	},
 	hero: {
@@ -190,6 +191,16 @@ export const zh: Dict = {
 		cjk: {
 			name: "粘贴时自动美化中英混排",
 			desc: "粘贴文本时在中文与英文 / 数字间补一个空格（代码块、链接、公式内不处理）",
+		},
+	},
+	linkCard: {
+		enabled: {
+			name: "链接卡片",
+			desc: "把 > [!link-card] 渲染成飞书 / TG 样式的链接卡片；仅插入 / 刷新时联网抓取，阅读离线可看",
+		},
+		localize: {
+			name: "插入时下载网页配图",
+			desc: "把卡片配图存进附件目录，卡片离线也有图；关闭则直接引用网页图片地址",
 		},
 	},
 	maintenance: {

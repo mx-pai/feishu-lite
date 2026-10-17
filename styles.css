@@ -571,6 +571,15 @@ a.fl-linkcard-hit.external-link {
 	background-image: none;
 	padding-right: 12px;
 }
+/* 悬停卡片不出现下划线：app.css 的 .external-link:hover（0,2,0）优先级高于 .fl-linkcard-hit（0,1,0），必须同样带 :hover 抬上来 */
+a.fl-linkcard-hit.external-link:hover,
+a.fl-linkcard-hit.external-link:active {
+	text-decoration: none;
+}
+/* 编辑视图：悬停卡片不披 Obsidian 给嵌入块的悬浮阴影（app.css 的 .cm-embed-block:hover → box-shadow: var(--embed-block-shadow-hover)） */
+.markdown-source-view.mod-cm6 .cm-embed-block:hover:has(.callout[data-callout="link-card"]) {
+	box-shadow: none;
+}
 
 .fl-linkcard-main {
 	flex: 1 1 auto;

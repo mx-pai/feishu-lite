@@ -6,7 +6,7 @@
  * - 纯逻辑（字段解析 / 构建 / 合并 / 版式 / 命名）都在 link-card-core.ts，本文件只管 Obsidian 层
  */
 import { Editor, MarkdownPostProcessorContext, Notice, TFile, requestUrl } from "obsidian";
-import type { App, MarkdownFileInfo, MarkdownView } from "obsidian";
+import type { App, EditorPosition, MarkdownFileInfo, MarkdownView } from "obsidian";
 import type FeishuLitePlugin from "./main";
 import { createAttachment } from "./image-paste";
 import {
@@ -14,12 +14,14 @@ import {
 	cardImageName,
 	cardImageNameFromUrl,
 	cleanMetaText,
+	expandBlockReplacement,
 	fieldOf,
 	hostnameOf,
 	isHttpUrl,
 	mergeCardLines,
 	normalizeUrlInput,
 	parseCardLines,
+	positionAfterInsert,
 	resolveCardLayout,
 	sniffImageExt,
 	stripQuote,
@@ -143,8 +145,8 @@ function appendFavicon(foot: HTMLElement, favicon: string, site: string): void {
 
 /* ================= 抓取（只在插入 / 刷新时发生） ================= */
 
-/** 抓网页 → 卡片元数据：requestUrl + charset 解码 + DOMParser，og / twitter / html 三级回落 */
-async function fetchLinkCardMeta(url: string): Promise<CardMeta> {
+/** 抓网页 → 卡片元数据：requestUrl + charset 解码 + DOMParser，og / twitter / html 三级回落（标题链接选项也复用） */
+export async function fetchLinkCardMeta(url: string): Promise<CardMeta> {
 	const res = await requestUrl({
 		url,
 		throw: false,
@@ -278,44 +280,95 @@ async function pickUrl(editor: Editor): Promise<{ url: string; fromSelection: bo
 	return url ? { url, fromSelection: false } : null;
 }
 
+/** 抓取 + 配图本地化 → 卡片字段行（命令与粘贴选择共用）；抓取失败抛错，由调用方兜底 */
+async function fetchCardEntries(plugin: FeishuLitePlugin, url: string, sourcePath: string): Promise<CardLine[]> {
+	const meta = await fetchLinkCardMeta(url);
+	const data: { url: string } & CardMeta = { url };
+	data.title = meta.title;
+	data.description = meta.description;
+	data.site = meta.site;
+	data.favicon = meta.favicon;
+	if (meta.image) {
+		const local = plugin.settings.linkCardLocalizeImage
+			? await downloadCardImage(plugin.app, meta.image, url, sourcePath)
+			: null;
+		data.image = local ?? meta.image;
+	}
+	return buildCardLines(data);
+}
+
+/** 卡片块文本（callout 首行 + 字段行） */
+function cardBlockText(entries: CardLine[]): string {
+	return ["> [!link-card]", ...writeCardLines(entries)].join("\n");
+}
+
+/** 在指定区间插入链接卡片（粘贴选择菜单用）；抓取失败兜底插入基础卡片，粘贴内容永不被吞 */
+export async function insertCardAt(
+	plugin: FeishuLitePlugin,
+	editor: Editor,
+	url: string,
+	sourcePath: string,
+	from: EditorPosition,
+	to: EditorPosition
+): Promise<void> {
+	const notice = new Notice("链接卡片：正在抓取页面信息…", 0);
+	let entries: CardLine[];
+	let fetchFailed = "";
+	try {
+		entries = await fetchCardEntries(plugin, url, sourcePath);
+	} catch (e) {
+		fetchFailed = errText(e);
+		entries = buildCardLines({ url });
+	}
+	notice.hide();
+	replaceWithCardBlock(editor, from, to, cardBlockText(entries));
+	if (fetchFailed) {
+		new Notice(`链接卡片：抓取失败（${fetchFailed}）；已插入基础卡片，可用命令「链接卡片：刷新」补全`);
+	}
+}
+
+/** 卡片块替换 [from,to)：单行时整行替换（行内转换拆出句首句尾——callout 必须从行首开始才能渲染）；跨行选区直接换块 */
+function replaceWithCardBlock(editor: Editor, from: EditorPosition, to: EditorPosition, block: string): void {
+	if (from.line === to.line) {
+		const lineText = editor.getLine(from.line);
+		const lineStart: EditorPosition = { line: from.line, ch: 0 };
+		const text = expandBlockReplacement(lineText, from.ch, to.ch, block);
+		editor.replaceRange(text, lineStart, { line: from.line, ch: lineText.length });
+		editor.setCursor(positionAfterInsert(lineStart, text));
+		return;
+	}
+	editor.replaceRange(block, from, to);
+	editor.setCursor(positionAfterInsert(from, block));
+}
+
 async function insertLinkCard(plugin: FeishuLitePlugin, editor: Editor, sourcePath: string): Promise<void> {
 	const pick = await pickUrl(editor);
 	if (!pick) {
 		new Notice("链接卡片：先选中一条 http(s) 链接，或把链接复制到剪贴板");
 		return;
 	}
+	const selFrom = pick.fromSelection ? editor.getCursor("from") : null;
+	const selTo = pick.fromSelection ? editor.getCursor("to") : null;
 	const notice = new Notice("链接卡片：正在抓取页面信息…", 0);
-	const data: { url: string } & CardMeta = { url: pick.url };
+	let entries: CardLine[];
 	let fetchFailed = "";
 	try {
-		const meta = await fetchLinkCardMeta(pick.url);
-		data.title = meta.title;
-		data.description = meta.description;
-		data.site = meta.site;
-		data.favicon = meta.favicon;
-		if (meta.image) {
-			const local = plugin.settings.linkCardLocalizeImage
-				? await downloadCardImage(plugin.app, meta.image, pick.url, sourcePath)
-				: null;
-			data.image = local ?? meta.image;
-		}
+		entries = await fetchCardEntries(plugin, pick.url, sourcePath);
 	} catch (e) {
 		fetchFailed = errText(e);
+		entries = buildCardLines({ url: pick.url });
 	}
 	notice.hide();
-	insertCardBlock(editor, buildCardLines(data), pick.fromSelection);
+	if (selFrom && selTo) replaceWithCardBlock(editor, selFrom, selTo, cardBlockText(entries));
+	else insertCardBlock(editor, entries);
 	if (fetchFailed) {
 		new Notice(`链接卡片：抓取失败（${fetchFailed}）；已插入基础卡片，可用命令「链接卡片：刷新」补全`);
 	}
 }
 
-/** 插入卡片块：选中链接时原地替换，剪贴板路径插到光标处的新一行 */
-function insertCardBlock(editor: Editor, entries: CardLine[], replacing: boolean): void {
-	const block = ["> [!link-card]", ...writeCardLines(entries)].join("\n");
-	if (replacing) {
-		editor.replaceSelection(block);
-		return;
-	}
+/** 插入卡片块（剪贴板路径）：光标行有内容就另起一行，空行直接落块 */
+function insertCardBlock(editor: Editor, entries: CardLine[]): void {
+	const block = cardBlockText(entries);
 	const line = editor.getLine(editor.getCursor().line);
 	editor.replaceSelection(line.trim() ? `\n${block}\n` : `${block}\n`);
 }

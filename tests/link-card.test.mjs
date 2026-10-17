@@ -103,3 +103,28 @@ test('link-card: 写入时保留缩进前缀与裸引用行', () => {
 	assert.deepEqual(lc.writeCardLines([{ raw: '' }], '  > '), ['  >']);
 	assert.deepEqual(lc.writeCardLines([{ key: 'url', value: 'https://a.dev/' }], '  > '), ['  > url: https://a.dev/']);
 });
+
+test('link-card: 链接文字转义 / 插入后光标 / 行内链接识别（悬浮转换的纯逻辑）', () => {
+	assert.equal(lc.escapeLinkText('a[b]c'), 'a\\[b\\]c');
+	assert.equal(lc.escapeLinkText(' 多  空格 \n 换行 '), '多 空格 换行');
+	assert.deepEqual(lc.positionAfterInsert({ line: 3, ch: 2 }, 'abc'), { line: 3, ch: 5 });
+	assert.deepEqual(lc.positionAfterInsert({ line: 3, ch: 2 }, 'a\nbc'), { line: 4, ch: 2 });
+	// 行内链接识别：命中 offset 的裸链接
+	assert.deepEqual(lc.findUrlAtInLine('看这个 https://a.dev/x 很好', 8), { url: 'https://a.dev/x', start: 4, end: 19 });
+	assert.equal(lc.findUrlAtInLine('看这个 https://a.dev/x 很好', 1), null);
+	// markdown 链接 / 自动链接里的 URL 不算裸链接
+	assert.equal(lc.findUrlAtInLine('[题](https://a.dev/)', 10), null);
+	assert.equal(lc.findUrlAtInLine('<https://a.dev/>', 5), null);
+	// 结尾句读不计入 URL
+	assert.equal(lc.findUrlAtInLine('https://a.dev/。', 8)?.url, 'https://a.dev/');
+	assert.equal(lc.findUrlAtInLine('看 https://a.dev，然后', 8)?.url, 'https://a.dev');
+});
+
+test('link-card: 块级替换文本（独占行整行 / 行内拆句首句尾）', () => {
+	const B = '> [!link-card]\n> url: https://a.dev/';
+	assert.equal(lc.expandBlockReplacement('https://a.dev/', 0, 14, B), B);
+	assert.equal(lc.expandBlockReplacement('  https://a.dev/', 2, 16, B), B);
+	assert.equal(lc.expandBlockReplacement('看这个 https://a.dev/ 好', 4, 18, B), `看这个\n\n${B}\n\n好`);
+	assert.equal(lc.expandBlockReplacement('看这个 https://a.dev/', 4, 18, B), `看这个\n\n${B}`);
+	assert.equal(lc.expandBlockReplacement('https://a.dev/ 补充', 0, 14, B), `${B}\n\n补充`);
+});

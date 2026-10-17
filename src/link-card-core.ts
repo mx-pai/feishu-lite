@@ -47,6 +47,59 @@ export function cleanMetaText(value: string, max = 0): string {
 	return max > 0 && t.length > max ? `${t.slice(0, max - 1).trimEnd()}…` : t;
 }
 
+/** Markdown 链接文字转义：`[` `]` 加反斜杠、空白折叠（抓取标题放进 `[ ]` 时用） */
+export function escapeLinkText(text: string): string {
+	return (text ?? "")
+		.replace(/[\[\]]/g, "\\$&")
+		.replace(/\s+/g, " ")
+		.trim();
+}
+
+/** 插入文本后的光标位置（纯计算；from = 插入起点，text = 已插入文本） */
+export function positionAfterInsert(from: { line: number; ch: number }, text: string): { line: number; ch: number } {
+	const lines = text.split("\n");
+	if (lines.length === 1) return { line: from.line, ch: from.ch + text.length };
+	return { line: from.line + lines.length - 1, ch: (lines[lines.length - 1] ?? "").length };
+}
+
+const URL_TOKEN_RE = /https?:\/\/[^\s<>()[\]"'“”‘’，。；：！？）】》]+/g;
+
+/**
+ * 行文本里命中 offset（0 基）的 http(s) 裸链接（悬浮转换条用）。
+ * - 紧跟在 `(` / `<` 后的链接（`[题名](url)` / `<url>` 等 markdown 语法上下文）不算裸链接
+ * - 结尾的句读 / 逗号等标点不计入 URL
+ */
+export function findUrlAtInLine(text: string, offset: number): { url: string; start: number; end: number } | null {
+	URL_TOKEN_RE.lastIndex = 0;
+	for (let m = URL_TOKEN_RE.exec(text); m; m = URL_TOKEN_RE.exec(text)) {
+		const start = m.index;
+		let end = start + m[0].length;
+		while (end > start && ".,;:!?".includes(text[end - 1] ?? "")) end--;
+		if (offset < start || offset > end) continue;
+		const before = start > 0 ? text[start - 1] : "";
+		if (before === "(" || before === "<") continue;
+		return { url: text.slice(start, end), start, end };
+	}
+	return null;
+}
+
+/**
+ * 块级卡片替换文本（链接 → 卡片时用）。
+ * callout 必须从行首开始才渲染，所以行内转换不能只把 URL 原地换成块：
+ * - 行首行尾都没有正文（链接独占一行，含只带缩进）→ 直接返回块文本
+ * - 行内有正文 → 句首、卡片、句尾各占独立段落（把 URL 从句子中间「抽出来」成卡片）
+ * 纯函数：调用方用返回值替换「整行」即可。
+ */
+export function expandBlockReplacement(lineText: string, fromCh: number, toCh: number, block: string): string {
+	const head = lineText.slice(0, fromCh).trimEnd();
+	const tail = lineText.slice(toCh).trim();
+	const parts: string[] = [];
+	if (head.trim()) parts.push(head);
+	parts.push(block);
+	if (tail) parts.push(tail);
+	return parts.join("\n\n");
+}
+
 /** 引用前缀（"> "）→ 原文（无前缀时原样返回） */
 export function stripQuote(line: string): string {
 	return line.replace(/^\s*>\s?/, "");

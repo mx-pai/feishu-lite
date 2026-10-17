@@ -10,6 +10,7 @@ import { imageGridPostProcessor, insertGridSkeleton, openImagePicker, unwrapGrid
 import { highlightPostProcessor, highlightViewPlugin, pickColorAndHighlight } from "./highlight";
 import { colPostProcessor } from "./column";
 import { registerLinkCard } from "./link-card";
+import { registerLinkPaste } from "./link-paste";
 import { codePrettyPostProcessor } from "./code-pretty";
 import { lightboxEditorExtension, registerLightbox } from "./lightbox";
 import { initToc, showTocPanel, toggleTocPanel } from "./toc";
@@ -150,6 +151,9 @@ export default class FeishuLitePlugin extends Plugin {
 
 		// 链接卡片（> [!link-card]）：阅读视图渲染卡片；插入 / 刷新 / 重抓命令才联网抓取
 		registerLinkCard(this);
+
+		// 链接交互：粘贴单独一条链接弹展示方式菜单；悬浮链接浮现快捷转换条
+		registerLinkPaste(this);
 
 		// 表格增强：Tab/Shift+Tab/Enter 跳格 + 自动对齐（Advanced Tables 启用时自动让位）
 		this.registerEditorExtension(tableEnhanceExtension(this));

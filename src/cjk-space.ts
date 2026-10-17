@@ -100,9 +100,9 @@ export function formatCjkSpacing(editor: Editor): void {
 
 // ---------------- 粘贴时自动美化（可开关） ----------------
 
-/** 光标是否处于 ``` / ~~~ 代码块内（粘贴进代码块时不处理） */
-function cursorInFence(editor: Editor): boolean {
-	const cursorLine = editor.getCursor().line;
+/** 指定行是否处于 ``` / ~~~ 代码块内（缺省用光标行；粘贴接管与悬浮转换复用同一判据） */
+export function cursorInFence(editor: Editor, line?: number): boolean {
+	const cursorLine = line ?? editor.getCursor().line;
 	let inFence = false;
 	let fenceChar = "";
 	for (let i = 0; i < cursorLine; i++) {

@@ -48,6 +48,10 @@ export interface FlSettings {
 	cjkPaste: boolean;
 	/** 链接卡片：把 > [!link-card] 渲染成卡片（插入 / 刷新时抓取网页元数据；渲染不联网） */
 	linkCard: boolean;
+	/** 链接卡片：粘贴「单独一条链接」时弹出展示方式菜单（卡片 / 标题链接 / 普通链接） */
+	linkPasteMenu: boolean;
+	/** 链接卡片：鼠标悬浮链接文字时浮现快捷转换条（卡片 / 标题链接；仅桌面端） */
+	linkHoverBar: boolean;
 	/** 链接卡片：插入时把网页配图下载到附件目录（关闭则直接引用远程图片地址） */
 	linkCardLocalizeImage: boolean;
 	/** 设置页分区折叠状态（分区 id → 是否收起；缺省展开；仅设置界面状态，不影响功能） */
@@ -99,6 +103,8 @@ export const DEFAULT_SETTINGS: FlSettings = {
 	rememberScroll: true,
 	cjkPaste: false,
 	linkCard: true,
+	linkPasteMenu: true,
+	linkHoverBar: true,
 	linkCardLocalizeImage: true,
 	settingsCollapsed: {},
 	readPositions: {},
@@ -797,6 +803,18 @@ export class FlSettingTab extends PluginSettingTab {
 						name: t.linkCard.enabled.name,
 						desc: t.linkCard.enabled.desc,
 						control: { type: "toggle", key: "linkCard" },
+					},
+					{
+						name: t.linkCard.pasteMenu.name,
+						desc: t.linkCard.pasteMenu.desc,
+						visible: () => this.plugin.settings.linkCard,
+						control: { type: "toggle", key: "linkPasteMenu" },
+					},
+					{
+						name: t.linkCard.hoverBar.name,
+						desc: t.linkCard.hoverBar.desc,
+						visible: () => this.plugin.settings.linkCard,
+						control: { type: "toggle", key: "linkHoverBar" },
 					},
 					{
 						name: t.linkCard.localize.name,

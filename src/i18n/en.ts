@@ -200,6 +200,14 @@ export const en = {
 			name: "Link cards",
 			desc: "Render > [!link-card] as Feishu / Telegram-style link cards. Network is used only when you insert or refresh; reading stays offline.",
 		},
+		pasteMenu: {
+			name: "Link options on paste",
+			desc: "Pasting a lone link offers link card / title link / plain link. Off keeps pasting silent — hover a link to convert anytime.",
+		},
+		hoverBar: {
+			name: "Convert bar on link hover",
+			desc: "Hover a link to get one-click card / title-link conversion (desktop only).",
+		},
 		localize: {
 			name: "Download card images on insert",
 			desc: "Save the card image into your attachments so cards work offline; off keeps the remote image URL.",

@@ -671,12 +671,12 @@ a.fl-linkcard-hit.external-link {
 	padding: 10px 12px 12px;
 }
 
-/* 悬浮链接快捷转换条（编辑视图，贴着鼠标；data-fl-ui 与其它划词浮层避让协调） */
+/* 悬浮链接快捷转换条（编辑视图，贴在链接正下方；data-fl-ui 与其它划词浮层避让协调） */
 .fl-linkhover {
 	position: fixed;
 	z-index: var(--layer-popover, 30);
 	display: flex;
-	gap: 6px;
+	gap: 4px;
 	padding: 4px;
 	background: var(--background-primary);
 	border: 1px solid var(--background-modifier-border);
@@ -684,7 +684,10 @@ a.fl-linkcard-hit.external-link {
 	box-shadow: var(--shadow-s, 0 4px 12px rgba(0, 0, 0, 0.15));
 }
 .fl-linkhover-btn {
-	padding: 2px 8px;
+	display: flex;
+	align-items: center;
+	gap: 4px;
+	padding: 3px 8px;
 	border-radius: 6px;
 	cursor: pointer;
 	font-size: var(--font-ui-smaller, 12px);
@@ -695,6 +698,13 @@ a.fl-linkcard-hit.external-link {
 .fl-linkhover-btn:hover {
 	background: var(--background-modifier-hover);
 	color: var(--text-normal);
+}
+.fl-linkhover-ico {
+	display: inline-flex;
+}
+.fl-linkhover-ico svg {
+	width: 13px;
+	height: 13px;
 }
 
 /* ================= 阅读视图：代码块美化（徽标 / 复制 / 行号） ================= */

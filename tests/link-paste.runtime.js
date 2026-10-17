@@ -80,23 +80,38 @@
   check(!evt.defaultPrevented,"rich-text (html) paste is left to Obsidian");
   check(menuItems().length===0,"no menu for rich-text paste");
 
-  // ⑥ 悬浮裸链接 → 转换条出现 → 点「卡片」→ 原地转换、条收起
+  // ⑥ 悬浮裸链接 → 转换条贴着链接出现、不追随 → 点「卡片」→ 原地转换、条收起
   await reset("# t\n\n看这个 http://127.0.0.1:1/ 好\n");
   const cm=editor.cm;
   check(!!cm,"editor exposes the CodeMirror view");
   const line3=cm.state.doc.line(3);
-  const coords=cm.coordsAtPos(line3.from+7);
-  check(!!coords,"hover anchor coordinates are readable");
-  cm.contentDOM.dispatchEvent(new MouseEvent("mousemove",{bubbles:true,cancelable:true,clientX:(coords.left+coords.right)/2,clientY:(coords.top+coords.bottom)/2}));
+  const pa=cm.coordsAtPos(line3.from+4),pb=cm.coordsAtPos(line3.from+23);
+  check(!!pa&&!!pb,"hover anchor coordinates are readable");
+  const linkRect={left:Math.min(pa.left,pb.left),right:Math.max(pa.right,pb.right),top:Math.min(pa.top,pb.top),bottom:Math.max(pa.bottom,pb.bottom)};
+  const cx=(linkRect.left+linkRect.right)/2,cy=(linkRect.top+linkRect.bottom)/2;
+  const move=(x,y)=>{cm.contentDOM.dispatchEvent(new MouseEvent("mousemove",{bubbles:true,cancelable:true,clientX:x,clientY:y}));};
+  move(cx,cy);
   await waitFor(()=>!!document.querySelector(".fl-linkhover"),4000);
   const bar=document.querySelector(".fl-linkhover");
   check(!!bar,"hovering a link shows the convert bar");
-  check(bar&&bar.querySelectorAll(".fl-linkhover-btn").length===2,"convert bar offers card / title");
-  const cardBtn=bar&&[...bar.querySelectorAll(".fl-linkhover-btn")].find(b=>b.getAttribute("data-act")==="card");
+  const barRect=bar.getBoundingClientRect();
+  check(Math.abs(barRect.top-(linkRect.bottom+6))<12&&Math.abs(barRect.left-linkRect.left)<12,"convert bar sits under the hovered link");
+  move(linkRect.right-2,cy);await sleep(200);
+  const barRect2=document.querySelector(".fl-linkhover")?.getBoundingClientRect();
+  check(!!barRect2&&Math.abs(barRect2.left-barRect.left)<2&&Math.abs(barRect2.top-barRect.top)<2,"convert bar stays put (no chasing)");
+  check(bar.querySelectorAll(".fl-linkhover-btn").length===2,"convert bar offers card / title");
+  const cardBtn=[...bar.querySelectorAll(".fl-linkhover-btn")].find(b=>b.getAttribute("data-act")==="card");
   clickIn(cardBtn);
   await waitFor(()=>editor.getValue().includes("[!link-card]"));
   check(editor.getValue()==="# t\n\n看这个\n\n> [!link-card]\n> url: http://127.0.0.1:1/\n\n好\n","hover card converts the url in place");
   check(!document.querySelector(".fl-linkhover"),"convert bar hides after the click");
+
+  // ⑦ 指针不在链接文字上（右侧空白 / 下方空白）不弹条——posAtCoords 的吸附不算命中
+  await reset("# t\n\n看这个 http://127.0.0.1:1/ 好\n");
+  move(linkRect.right+4,cy);await sleep(350);
+  check(!document.querySelector(".fl-linkhover"),"no bar for a point past the link text");
+  move(cx,linkRect.bottom+12);await sleep(350);
+  check(!document.querySelector(".fl-linkhover"),"no bar for a point just below the link line");
   return JSON.stringify({passed:checks.length,checks});
  }finally{
   if(plugin.settings.linkPasteMenu!==wasPasteMenu){plugin.settings.linkPasteMenu=wasPasteMenu;await plugin.saveSettings();}

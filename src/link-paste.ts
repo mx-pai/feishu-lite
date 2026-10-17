@@ -10,7 +10,7 @@
  * - 内容不是「单独一条 http(s) 链接」→ 不处理；光标 / 悬浮行在代码块内 → 不处理
  * 双通道与 image-paste 同构：CM6 最高优先级（Prec.highest）+ workspace editor-paste 兜底。
  */
-import { Menu, Notice, editorInfoField } from "obsidian";
+import { Menu, Notice, editorInfoField, setIcon } from "obsidian";
 import type { Editor, EditorPosition, MarkdownFileInfo, MarkdownView, MenuItem } from "obsidian";
 import { Prec } from "@codemirror/state";
 import type { Extension } from "@codemirror/state";
@@ -218,14 +218,37 @@ function hideHoverBar(): void {
 	}
 }
 
-/** 悬浮条永远贴着鼠标（视口内钳制，不越界） */
-function moveHoverBar(evt: MouseEvent): void {
+interface LinkRect {
+	left: number;
+	right: number;
+	top: number;
+	bottom: number;
+}
+
+/** 链接区间的屏幕矩形（两端各取一次字符坐标；任一读不到返回 null） */
+function linkRectOf(view: EditorView, from: number, to: number): LinkRect | null {
+	const a = view.coordsAtPos(from);
+	const b = view.coordsAtPos(to);
+	if (!a || !b) return null;
+	return {
+		left: Math.min(a.left, b.left),
+		right: Math.max(a.right, b.right),
+		top: Math.min(a.top, b.top),
+		bottom: Math.max(a.bottom, b.bottom),
+	};
+}
+
+/** 悬浮条固定贴在链接文字正下方（视口内钳制；贴底时改放链接上方）——不追随光标 */
+function placeHoverBar(anchor: LinkRect): void {
 	if (!hoverBar) return;
-	const w = hoverBar.el.offsetWidth || 150;
-	const x = Math.max(8, Math.min(evt.clientX + 12, window.innerWidth - w - 8));
-	const y = Math.max(8, Math.min(evt.clientY + 18, window.innerHeight - 40));
-	hoverBar.el.style.left = `${x}px`;
-	hoverBar.el.style.top = `${y}px`;
+	const el = hoverBar.el;
+	const w = el.offsetWidth || 170;
+	const h = el.offsetHeight || 30;
+	const x = Math.max(8, Math.min(anchor.left, window.innerWidth - w - 8));
+	let y = anchor.bottom + 6;
+	if (y + h > window.innerHeight - 8) y = anchor.top - h - 6; // 下方放不下就放上方
+	el.style.left = `${x}px`;
+	el.style.top = `${Math.max(8, y)}px`;
 }
 
 /** 编辑器悬浮处理：命中裸链接就浮现转换条，离开即收起（拖拽 / 选区 / 代码块内都不打扰） */
@@ -282,6 +305,19 @@ function hoverMove(plugin: FeishuLitePlugin, evt: MouseEvent, view: EditorView):
 		scheduleHoverHide();
 		return;
 	}
+	// 命中必须落在链接文字本身上：posAtCoords 会把链接右侧 / 下方的空白吸附到行尾，
+	// 只看 offset 会在离链接很远的空白处也弹条——先在字符坐标里量出链接矩形再核对指针位置
+	const rect = linkRectOf(view, line.from + found.start, line.from + found.end);
+	if (
+		!rect ||
+		evt.clientX < rect.left - 2 ||
+		evt.clientX > rect.right + 2 ||
+		evt.clientY < rect.top - 1 ||
+		evt.clientY > rect.bottom + 1
+	) {
+		scheduleHoverHide();
+		return;
+	}
 	showHoverBar(
 		plugin,
 		editor,
@@ -289,7 +325,7 @@ function hoverMove(plugin: FeishuLitePlugin, evt: MouseEvent, view: EditorView):
 		found.url,
 		{ line: line.number - 1, ch: found.start },
 		{ line: line.number - 1, ch: found.end },
-		evt
+		rect
 	);
 }
 
@@ -300,25 +336,24 @@ function showHoverBar(
 	url: string,
 	from: EditorPosition,
 	to: EditorPosition,
-	evt: MouseEvent
+	rect: LinkRect
 ): void {
 	const key = `${sourcePath}:${from.line}:${from.ch}:${url}`;
-	if (hoverBar && hoverBar.key === key) {
-		moveHoverBar(evt);
-		return;
-	}
+	if (hoverBar && hoverBar.key === key) return; // 同一条链接：保持原位，不追随光标
 	hideHoverBar();
 
 	const el = document.createElement("div");
 	el.addClass("fl-linkhover");
 	el.setAttr("data-fl-ui", "1");
-	const mk = (label: string, act: string): void => {
-		const btn = el.createSpan({ cls: "fl-linkhover-btn", text: label });
+	const mk = (label: string, act: string, icon: string): void => {
+		const btn = el.createSpan({ cls: "fl-linkhover-btn" });
+		setIcon(btn.createSpan({ cls: "fl-linkhover-ico" }), icon);
+		btn.createSpan({ cls: "fl-linkhover-txt", text: label });
 		btn.setAttr("data-act", act);
 		btn.setAttr("aria-label", act === "card" ? "转换为链接卡片" : "转换为标题链接");
 	};
-	mk("卡片", "card");
-	mk("标题链接", "title");
+	mk("卡片", "card", "link");
+	mk("标题链接", "title", "heading");
 	el.addEventListener("mouseenter", cancelHoverHide);
 	el.addEventListener("mouseleave", scheduleHoverHide);
 	el.addEventListener("mousedown", (e) => e.preventDefault()); // 不抢编辑器焦点、不改变选区
@@ -335,5 +370,5 @@ function showHoverBar(
 	});
 	document.body.appendChild(el);
 	hoverBar = { el, key, url, from, to, editor, sourcePath };
-	moveHoverBar(evt);
+	placeHoverBar(rect);
 }

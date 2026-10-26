@@ -1,4 +1,4 @@
-import { MarkdownRenderChild, Menu, Notice, TFile, editorInfoField, editorLivePreviewField } from 'obsidian';
+import { MarkdownRenderChild, Menu, Notice, Platform, TFile, editorInfoField, editorLivePreviewField } from 'obsidian';
 import type { MarkdownPostProcessorContext } from 'obsidian';
 import { StateField } from '@codemirror/state';
 import { Decoration, EditorView, ViewPlugin, WidgetType } from '@codemirror/view';
@@ -71,6 +71,8 @@ export class ImageToolsController {
   const editorRoot=img.closest<HTMLElement>('.cm-editor'), view=editorRoot ? EditorView.findFromDOM(editorRoot) : null;
   let context; try { context=view ? this.editorContext(view,img) : this.contexts.get(img); } catch(err) { reportError(err); return; }
   if (!context) return;
+  // 手机端普通点按优先进入灯箱：桌面仍保留点图工具条 + 右键完整菜单。
+  if (Platform.isMobile && this.plugin.settings.imageLightbox) { e.preventDefault(); e.stopImmediatePropagation(); this.closeToolbar(false); openLightbox(img.src,context.ref.alt,img.ownerDocument); return; }
   // LP mousedown opens our toolbar; the subsequent native click also opens
   // Obsidian 1.13's viewer unless intercepted before the embed handler.
   e.preventDefault(); e.stopImmediatePropagation(); void this.showToolbar(img,context).catch(reportError);
@@ -150,7 +152,9 @@ export class ImageToolsController {
     this.down=e => { if (e.button !== 0 || e.defaultPrevented || !controller.plugin.settings.imageTools) return;
      const img=(e.target as HTMLElement)?.closest<HTMLImageElement>('img'); if (!img || img.closest('a,.fl-lightbox,.fl-image-editor')) return;
      const context=controller.editorContext(view,img); if (!context) return;
-     e.preventDefault(); e.stopPropagation(); void controller.showToolbar(img,context).catch(reportError);
+     if (Platform.isMobile && controller.plugin.settings.imageLightbox) { e.preventDefault(); e.stopImmediatePropagation(); controller.closeToolbar(false); openLightbox(img.src,context.ref.alt,img.ownerDocument); return; }
+     e.preventDefault(); e.stopPropagation();
+     void controller.showToolbar(img,context).catch(reportError);
     };
     view.contentDOM.addEventListener('mousedown',this.down,true);
     this.observer=new MutationObserver(() => { if (this.timer !== null) window.clearTimeout(this.timer); this.timer=window.setTimeout(() => { this.timer=null; this.bootstrap(); },100); });

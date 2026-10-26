@@ -1,13 +1,13 @@
 {
 	"name": "feishu-lite",
-	"version": "0.2.9",
+	"version": "0.4.3",
 	"description": "Obsidian 文档增强：批注线程、图片工具条、裁剪标注、分栏与划词高亮",
 	"private": true,
 	"type": "module",
 	"scripts": {
 		"dev": "node esbuild.config.mjs",
 		"build": "tsc -noEmit -skipLibCheck && node esbuild.config.mjs production",
-		"test": "node --test tests/core.test.mjs tests/safety.test.mjs tests/link-card.test.mjs tests/slash-ext.test.mjs tests/selection-ext.test.mjs"
+		"test": "node --test tests/core.test.mjs tests/safety.test.mjs tests/link-card.test.mjs tests/slash-ext.test.mjs tests/selection-ext.test.mjs tests/mobile-compat.test.mjs"
 	},
 	"devDependencies": {
 		"@codemirror/state": "^6.5.0",

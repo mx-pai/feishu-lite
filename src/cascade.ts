@@ -386,18 +386,18 @@ export function openSlashCascade(
 	focus = entry.params ? "right" : "left";
 	refreshFocus();
 
-	// 定位：左栏贴在原菜单位置（光标下方），两栏整体不越出视口
+	// 定位：窄屏时 CSS 将双栏纵向排列，按实际尺寸统一钳制到视口内。
 	const rect = anchorRect(editor);
 	let left = rect ? rect.left : Math.round(window.innerWidth / 2 - 240);
 	let top = rect ? rect.bottom + 4 : Math.round(window.innerHeight / 3);
 	root.style.left = `${left}px`;
 	root.style.top = `${top}px`;
-	const totalW = leftPanel.offsetWidth + rightPanel.offsetWidth + 6;
-	if (left + totalW > window.innerWidth - 8) {
-		left = Math.max(8, window.innerWidth - 8 - totalW);
+	const w = root.offsetWidth;
+	const h = root.offsetHeight;
+	if (left + w > window.innerWidth - 8) {
+		left = Math.max(8, window.innerWidth - 8 - w);
 		root.style.left = `${left}px`;
 	}
-	const h = Math.max(leftPanel.offsetHeight, rightPanel.offsetHeight);
 	if (top + h > window.innerHeight - 8) {
 		root.style.top = `${Math.max(8, window.innerHeight - h - 8)}px`;
 	}

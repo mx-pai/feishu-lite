@@ -44,7 +44,7 @@ Lark-doc-style editing for Obsidian: annotations, image layout & crop-annotate, 
 - **表格 / 列表增强** — Tab 跳格自动对齐、行列增删；`Cmd+Shift+↑/↓` 移动子树；对 Advanced Tables / Outliner 自动让位
 - **阅读视图美化** — 代码块徽标 / 复制 / 行号、表格斑马纹
 - **链接卡片** — `> [!link-card]` 渲染为飞书 / TG 式卡片（大图 / 缩略图 / 纯文字三种版式）；粘贴一条链接即弹出展示方式选择（卡片 / 标题链接 / 普通链接），鼠标悬浮链接随时快捷转换；标题、摘要、站点与配图写进笔记，离线可看；仅插入 / 刷新时联网
-- **图片查看器** — 右键图片点「查看图片」悬浮放大：滚轮缩放、拖拽平移、Esc / 点击空白关闭（关闭图片工具条时保持直接点击查看）
+- **图片查看器** — 桌面右键「查看图片」、手机直接点图悬浮放大；滚轮 / 双指缩放、拖拽平移、Esc / 点击空白关闭
 - **浮动目录** — 右侧悬浮大纲：多级标题折叠（滚动进折叠分支自动展开）；桌面悬停展开，移动端悬浮按钮点按展开；滚动跟随、点击跳转
 - **还有** — Mermaid 骨架、中英混排美化、阅读位置记忆（仅桌面端）、附件自动清理、目录页自动化
 
@@ -60,7 +60,7 @@ Lark-doc-style editing for Obsidian: annotations, image layout & crop-annotate, 
 - **Table & list enhancements** — Tab navigation with auto-alignment, row and column editing, `Cmd+Shift+↑/↓` subtree moves; yields to Advanced Tables / Outliner
 - **Reading view polish** — code block badges, copy button and line numbers, zebra tables
 - **Link cards** — render `> [!link-card]` as Feishu / Telegram-style cards (large / compact / text); pasting a lone link offers card / title link / plain link, and hovering a link converts it on the spot — title, description, site and image go into your note for offline reading; network is used only on insert or refresh
-- **Image lightbox** — choose View Image in the context menu: wheel scaling, drag to pan, Esc / click-outside to close (reading & editing views)
+- **Image lightbox** — choose View Image on desktop or tap an image on mobile: wheel / pinch scaling, drag to pan, Esc / click-outside to close (reading & editing views)
 - **Floating outline** — collapsible heading tree, scroll-following highlight, click to jump; hover-to-expand rail on desktop, tap-to-expand floating button on mobile
 - **Also included** — Mermaid snippets, CJK–Latin spacing, reading position memory (desktop only), attachment cleanup, index-page automation
 
@@ -70,7 +70,7 @@ Lark-doc-style editing for Obsidian: annotations, image layout & crop-annotate, 
 - **社区页面 / Community page**：[community.obsidian.md/plugins/feishu-lite](https://community.obsidian.md/plugins/feishu-lite) — 一键 Add to Obsidian / one-click install
 - **手动 / Manual**：从 [Releases](https://github.com/mx-pai/feishu-lite/releases) 下载 `main.js`、`manifest.json`、`styles.css`，放入 `<vault>/.obsidian/plugins/feishu-lite/` 后启用 / download from Releases into `<vault>/.obsidian/plugins/feishu-lite/`, then enable
 
-Requires Obsidian 1.7.2+ · MIT License
+Requires Obsidian 1.13.1+ · MIT License
 
 ## 开发 / Development
 

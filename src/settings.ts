@@ -1,4 +1,4 @@
-import { App, Notice, PluginSettingTab, setIcon } from "obsidian";
+import { App, Notice, Platform, PluginSettingTab, setIcon } from "obsidian";
 import type { SettingDefinition, SettingDefinitionItem } from "obsidian";
 import type FeishuLitePlugin from "./main";
 import { buildImageName } from "./naming";
@@ -785,6 +785,7 @@ export class FlSettingTab extends PluginSettingTab {
 					{
 						name: t.reading.rememberScroll.name,
 						desc: t.reading.rememberScroll.desc,
+						visible: () => !Platform.isMobile,
 						control: { type: "toggle", key: "rememberScroll" },
 					},
 					{
@@ -813,7 +814,7 @@ export class FlSettingTab extends PluginSettingTab {
 					{
 						name: t.linkCard.hoverBar.name,
 						desc: t.linkCard.hoverBar.desc,
-						visible: () => this.plugin.settings.linkCard,
+						visible: () => this.plugin.settings.linkCard && !Platform.isMobile,
 						control: { type: "toggle", key: "linkHoverBar" },
 					},
 					{
